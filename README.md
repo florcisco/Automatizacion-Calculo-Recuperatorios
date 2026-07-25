@@ -42,31 +42,31 @@ El programa fue diseñado a partir de necesidades reales detectadas durante su u
 
 ### Selección del archivo
 
-![Programa](capturas/2.Elegir Archivo.png)
+![Programa](capturas/elegir_archivo.png)
 
 ---
 
 ### Archivo original
 
-![Original](capturas/1.Sin Procesar.png)
+![Original](capturas/archivo_original.png)
 
 ---
 
 ### Ventana de Finalización
 
-![Proceso Finalizado](capturas/3.Ventana Finalización.png)
+![Proceso Finalizado](capturas/ventana_finalizacion.png)
 
 ---
 
 ### Archivo procesado
 
-![Procesado](capturas/5.Archivo Procesado.png)
+![Procesado](capturas/archivo_procesado.png)
 
 ---
 
 ### Detección de apellidos repetidos
 
-![Alerta](capturas/4.Alerta a Tener en Cuenta.png)
+![Alerta](capturas/alerta_apellidos.png)
 
 ---
 
