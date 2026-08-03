@@ -632,11 +632,9 @@ def validar_archivos():
     if not validar_archivo_inasistencias():
         return False
 
-    if not validar_cantidad_alumnos():
-        return False
-
-    mostrar_info(
-        "Archivos validados correctamente."
+    actualizar_progreso(
+        "Archivos validados correctamente.",
+        45
     )
 
     return True
@@ -755,6 +753,28 @@ def validar_cantidad_alumnos():
 
     return True
 
+# ------------------------------------------------------------
+
+def leer_datos():
+    """
+    Lee ambos archivos y verifica que puedan procesarse.
+    """
+
+    if not cargar_archivo_notas():
+        return False
+
+    if not cargar_archivo_inasistencias():
+        return False
+
+    if not validar_cantidad_alumnos():
+        return False
+
+    actualizar_progreso(
+        "Datos cargados correctamente.",
+        65
+    )
+
+    return True
 
 
 
@@ -772,7 +792,11 @@ if __name__ == "__main__":
         cerrar_ventana_progreso()
         sys.exit()
 
+    if not leer_datos():
+        cerrar_ventana_progreso()
+        sys.exit()
+
     actualizar_progreso(
-        "Preparando lectura de datos...",
-        50
+        "Preparando validación de notas...",
+        70
     )
