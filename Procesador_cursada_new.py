@@ -111,11 +111,21 @@ def actualizar_progreso(mensaje, porcentaje):
 
 def cerrar_ventana_progreso():
     """
-    Cierra la ventana.
+    Cierra la ventana de progreso si todavía existe.
     """
 
-    if ventana_progreso is not None:
-        ventana_progreso.destroy()
+    global ventana_progreso
+
+    if ventana_progreso is None:
+        return
+
+    try:
+        if ventana_progreso.winfo_exists():
+            ventana_progreso.destroy()
+    except tk.TclError:
+        pass
+
+    ventana_progreso = None
 
 
 # ============================================================
@@ -302,7 +312,7 @@ TITULO = f"Procesador de Cursadas V{VERSION}"
 # HOJAS DEL ARCHIVO
 # ============================================================
 
-HOJA_REPORTE = "REPORTE"
+HOJA_REPORTE = "REPORTE1"
 HOJA_LIB = "LIB"
 HOJA_REG2ET = "REG 2ET"
 HOJA_INAS = "INAS"
@@ -401,6 +411,7 @@ workbook = None
 worksheet = None
 
 df_notas = None
+df_reporte = None
 df_inas1 = None
 df_inas2 = None
 
@@ -450,57 +461,45 @@ def seleccionar_archivo(titulo):
 
 def seleccionar_archivos():
 
-  actualizar_progreso(
-    "Seleccionando archivo de notas...",
-    5
-)
-
     global archivo_notas
     global archivo_inasistencias
 
+    actualizar_progreso(
+        "Seleccionando archivo de notas...",
+        5
+    )
+
     root = tk.Tk()
     root.withdraw()
-
-    # Archivo de notas
 
     archivo_notas = seleccionar_archivo(
         "Seleccione el archivo de NOTAS"
     )
 
     if archivo_notas is None:
-        messagebox.showwarning(
-            TITULO,
-            "Operación cancelada."
-        )
+        mostrar_advertencia("Operación cancelada.")
         return False
-      
-  actualizar_progreso(
-    "Seleccionando archivo de inasistencias...",
-    10
-)
 
-    # Archivo de inasistencias
+    actualizar_progreso(
+        "Seleccionando archivo de inasistencias...",
+        10
+    )
 
     archivo_inasistencias = seleccionar_archivo(
         "Seleccione el archivo de INASISTENCIAS"
     )
 
     if archivo_inasistencias is None:
-        messagebox.showwarning(
-            TITULO,
-            "Operación cancelada."
-        )
+        mostrar_advertencia("Operación cancelada.")
         return False
 
-    messagebox.showinfo(
-        TITULO,
-        "Archivos seleccionados correctamente."
+    mostrar_info("Archivos seleccionados correctamente.")
+
+    actualizar_progreso(
+        "Archivos seleccionados.",
+        15
     )
 
-actualizar_progreso(
-    "Archivos seleccionados.",
-    15
-)
     return True
 
 # ============================================================
@@ -531,7 +530,7 @@ def validar_archivo_notas():
 
     except Exception as e:
 
-        mostrar_error("No fue posible abrir el archivo de notas.\n\n{e}")
+        mostrar_error(f"No fue posible abrir el archivo de notas.\n\n{e}")
 
         return False
 
@@ -580,7 +579,7 @@ def validar_archivo_inasistencias():
     except Exception as e:
 
         mostrar_error(
-            "No fue posible abrir el archivo de inasistencias.\n\n{e}"
+            f"No fue posible abrir el archivo de inasistencias.\n\n{e}"
         )
 
         return False
@@ -742,8 +741,7 @@ def validar_cantidad_alumnos():
 
     if cantidad_notas != cantidad_inas:
 
-        messagebox.showerror(
-            TITULO,
+        mostrar_error(
             "La cantidad de alumnos no coincide.\n\n"
             f"Notas: {cantidad_notas}\n"
             f"Inasistencias: {cantidad_inas}"
