@@ -669,6 +669,58 @@ def validar_archivos():
 # LECTURA DE DATOS
 # ============================================================
 
+def validar_coincidencia_alumnos():
+
+    actualizar_progreso(
+        "Verificando coincidencia de alumnos...",
+        35
+    )
+
+    alumnos_notas = obtener_lista_alumnos(df_notas)
+    alumnos_reporte = obtener_lista_alumnos(df_reporte)
+
+    faltan_en_reporte = sorted(
+        set(alumnos_notas.keys()) -
+        set(alumnos_reporte.keys())
+    )
+
+    faltan_en_notas = sorted(
+        set(alumnos_reporte.keys()) -
+        set(alumnos_notas.keys())
+    )
+
+    if not faltan_en_reporte and not faltan_en_notas:
+        return True
+
+    mensaje = ""
+
+    if faltan_en_reporte:
+
+        mensaje += (
+            "Alumnos presentes en NOTAS y ausentes "
+            "en REPORTE:\n\n"
+        )
+
+        for alumno in faltan_en_reporte:
+            mensaje += f"• {alumno}\n"
+
+    if faltan_en_notas:
+
+        if mensaje != "":
+            mensaje += "\n-----------------------------\n\n"
+
+        mensaje += (
+            "Alumnos presentes en REPORTE y ausentes "
+            "en NOTAS:\n\n"
+        )
+
+        for alumno in faltan_en_notas:
+            mensaje += f"• {alumno}\n"
+
+    mostrar_error(mensaje)
+
+    return False
+    
 def cargar_archivo_notas():
 
     global df_notas
@@ -759,26 +811,6 @@ def cargar_archivo_inasistencias():
 
     return True
 
-def validar_cantidad_alumnos():
-
-    cantidad_notas = len(df_notas)
-
-    cantidad_inas = len(df_reporte)
-
-    if cantidad_notas != cantidad_inas:
-
-        mostrar_error(
-            "La cantidad de alumnos no coincide.\n\n"
-            f"Notas: {cantidad_notas}\n"
-            f"Inasistencias: {cantidad_inas}"
-        )
-
-        return False
-
-    return True
-
-# ------------------------------------------------------------
-
 def leer_datos():
     """
     Lee ambos archivos y verifica que puedan procesarse.
@@ -789,8 +821,8 @@ def leer_datos():
 
     if not cargar_archivo_inasistencias():
         return False
-
-    if not validar_cantidad_alumnos():
+        
+    if not validar_coincidencia_alumnos():
         return False
 
     actualizar_progreso(
