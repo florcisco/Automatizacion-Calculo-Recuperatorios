@@ -133,6 +133,32 @@ def cerrar_ventana_progreso():
 # FUNCIONES AUXILIARES
 # ============================================================
 
+def obtener_lista_alumnos(df, columna_alumno="ALUMNO"):
+    """
+    Devuelve un diccionario con los apellidos normalizados
+    y la fila correspondiente dentro del DataFrame.
+    """
+
+    alumnos = {}
+
+    for indice, valor in df[columna_alumno].items():
+
+        if valor is None:
+            continue
+
+        nombre = str(valor).strip()
+
+        if nombre == "":
+            continue
+
+        apellido = normalizar_texto(
+            obtener_apellido(nombre)
+        )
+
+        alumnos[apellido] = indice
+
+    return alumnos
+    
 def quitar_tildes(texto):
     """
     Elimina las tildes de un texto.
