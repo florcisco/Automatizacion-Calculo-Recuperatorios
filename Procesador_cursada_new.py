@@ -11,7 +11,10 @@
 # VENTANA DE PROGRESO
 # ============================================================
 
-from tkinter import tk, simpledialog
+import tkinter as tk
+from tkinter import messagebox, simpledialog, ttk
+
+from pandas.io import excel
 
 ventana_progreso = None
 barra_progreso = None
@@ -37,13 +40,13 @@ def crear_ventana_progreso():
 
     ventana_progreso.attributes("-topmost", True)
 
-    ttk.Label(
+    tk.Label(
         ventana_progreso,
         text="Procesador de Cursadas",
         font=("Segoe UI", 12, "bold")
     ).pack(pady=(15, 10))
 
-    etiqueta_estado = ttk.Label(
+    etiqueta_estado = tk.Label(
         ventana_progreso,
         text="Inicializando...",
         font=("Segoe UI", 10)
@@ -776,20 +779,55 @@ def cargar_archivo_notas():
 
         return False
 
-    if archivo_notas.lower().endswith(".xlsx"):
+    try:
 
-        df_notas = pd.read_excel(
-            archivo_notas,
-            header=fila
+        if archivo_notas.lower().endswith(".xlsx"):
+
+            df_notas = pd.read_excel(
+                archivo_notas,
+                header=fila
+            )
+
+        else:
+
+            df_notas = pd.read_excel(
+                archivo_notas,
+                engine="odf",
+                header=fila
+            )
+
+    except Exception as e:
+
+        mostrar_error(
+            f"No fue posible leer los datos del archivo de notas.\n\n{e}"
         )
 
-    else:
+        return False
 
-        df_notas = pd.read_excel(
-            archivo_notas,
-            engine="odf",
-            header=fila
+    # --------------------------------------------------------
+    # NORMALIZAR COLUMNAS DEL ARCHIVO DE NOTAS
+    # --------------------------------------------------------
+
+    columnas = df_notas.columns.tolist()
+
+    if len(columnas) < 7:
+
+        mostrar_error(
+            "El archivo de notas no contiene la cantidad "
+            "de columnas esperada para la segunda etapa."
         )
+
+        return False
+
+    df_notas.columns = [
+        "ALUMNO",
+        "TP1",
+        "TP2",
+        "1P",
+        "TP3",
+        "TP4",
+        "PROPUESTA"
+    ]
 
     return True
 
@@ -797,7 +835,7 @@ def cargar_archivo_notas():
 def cargar_archivo_inasistencias():
 
     global df_reporte
-    global df_inas1
+    global df_inas
     global df_inas2
 
     actualizar_progreso(
@@ -805,20 +843,72 @@ def cargar_archivo_inasistencias():
         60
     )
 
-    df_reporte = pd.read_excel(
-        archivo_inasistencias,
-        sheet_name=HOJA_REPORTE
-    )
+    try:
 
-    df_inas1 = pd.read_excel(
-        archivo_inasistencias,
-        sheet_name=HOJA_INAS
-    )
+        # ----------------------------------------------------
+        # REPORTE
+        # ----------------------------------------------------
 
-    df_inas2 = pd.read_excel(
-        archivo_inasistencias,
-        sheet_name=HOJA_INAS2
-    )
+        bruto_reporte = pd.read_excel(
+            archivo_inasistencias,
+            sheet_name=HOJA_REPORTE,
+            header=None
+        )
+
+        fila_reporte = buscar_fila_encabezado(
+            bruto_reporte
+        )
+
+        if fila_reporte is None:
+
+            mostrar_error(
+                "No fue posible localizar el encabezado "
+                "de la hoja REPORTE."
+            )
+
+            return False
+
+        df_reporte = pd.read_excel(
+            archivo_inasistencias,
+            sheet_name=HOJA_REPORTE,
+            header=fila_reporte
+        )
+
+        # ----------------------------------------------------
+        # INAS
+        # ----------------------------------------------------
+
+        df_inas = pd.read_excel(
+            archivo_inasistencias,
+            sheet_name=HOJA_INAS
+        )
+
+        # ----------------------------------------------------
+        # INAS2
+        # ----------------------------------------------------
+
+        df_inas2 = pd.read_excel(
+            archivo_inasistencias,
+            sheet_name=HOJA_INAS2
+        )
+
+    except Exception as e:
+
+        mostrar_error(
+            "No fue posible abrir el archivo "
+            "de inasistencias.\n\n"
+            f"{e}"
+        )
+
+        return False
+        # Normalizar columnas de INAS e INAS2
+    df_inas = df_inas.rename(
+        columns={"Apellido y nombre": "ALUMNO"}
+        )
+
+    df_inas2 = df_inas2.rename(
+        columns={"Apellido y nombre": "ALUMNO"}
+        )
 
     return True
 
@@ -864,12 +954,14 @@ def calcular_prm2():
     for indice in df_notas.index:
 
         tp3 = obtener_nota(
-            df_notas.at[indice, "TP3"]
-        )
+            df_notas.loc[indice],
+            "TP3"
+            )
 
         tp4 = obtener_nota(
-            df_notas.at[indice, "TP4"]
-        )
+            df_notas.loc[indice],
+            "TP4"
+            )
 
         prm2 = round((tp3 + tp4) / 2, 1)
 
@@ -904,8 +996,9 @@ def determinar_habilitados_segundo_parcial():
         alumno = df_notas.at[indice, "ALUMNO"]
 
         prm2 = obtener_nota(
-            df_notas.at[indice, "PRM2"]
-        )
+            df_notas.loc[indice],
+            "PRM2"
+            )
 
         if prm2 < 4:
 
@@ -922,7 +1015,8 @@ def calcular_inasistencias_segunda_etapa():
     """
     Calcula las inasistencias correspondientes
     únicamente a la segunda etapa.
-
+    
+    ```
     INAS segunda etapa = INAS2 - INAS primera etapa.
     """
 
@@ -934,79 +1028,90 @@ def calcular_inasistencias_segunda_etapa():
     actualizar_progreso(
         "Calculando inasistencias de la segunda etapa...",
         55
-    )
+        )
 
     inas_segunda_etapa = {}
 
     alumnos_reporte = obtener_lista_alumnos(
         df_reporte
-    )
+        )
 
     alumnos_inas = obtener_lista_alumnos(
         df_inas
-    )
+        )
 
     alumnos_inas2 = obtener_lista_alumnos(
         df_inas2
-    )
+        )
 
     for apellido in alumnos_reporte.keys():
-
         valor_inas = 0
         valor_inas2 = 0
 
-        # ----------------------------------------
-        # INAS PRIMERA ETAPA
-        # ----------------------------------------
+    # ----------------------------------------
+    # INAS PRIMERA ETAPA
+    # ----------------------------------------
 
-        if apellido in alumnos_inas:
+    if apellido in alumnos_inas:
 
-            datos = alumnos_inas[apellido]
+        datos = alumnos_inas[apellido]
 
-            if isinstance(datos, dict):
-                fila = datos.get("fila")
-            else:
-                fila = datos
+        if isinstance(datos, dict):
+            fila = datos.get("fila")
+        else:
+            fila = datos
 
-            try:
-                valor_inas = obtener_nota(
-                    df_inas.loc[fila, "INAS"]
-                )
-            except Exception:
-                valor_inas = 0
+        try:
 
-        # ----------------------------------------
-        # INAS ACUMULADAS / SEGUNDA ETAPA
-        # ----------------------------------------
+            valor = df_inas.loc[
+                fila,
+                "INAS"
+            ]
 
-        if apellido in alumnos_inas2:
+            if pd.notna(valor):
+                valor_inas = float(valor)
 
-            datos = alumnos_inas2[apellido]
+        except Exception:
+            valor_inas = 0
 
-            if isinstance(datos, dict):
-                fila = datos.get("fila")
-            else:
-                fila = datos
+    # ----------------------------------------
+    # INAS ACUMULADAS / SEGUNDA ETAPA
+    # ----------------------------------------
 
-            try:
-                valor_inas2 = obtener_nota(
-                    df_inas2.loc[fila, "INAS"]
-                )
-            except Exception:
-                valor_inas2 = 0
+    if apellido in alumnos_inas2:
 
-        # ----------------------------------------
-        # DIFERENCIA
-        # ----------------------------------------
+        datos = alumnos_inas2[apellido]
 
-        resultado = valor_inas2 - valor_inas
+        if isinstance(datos, dict):
+            fila = datos.get("fila")
+        else:
+            fila = datos
 
-        if resultado < 0:
-            resultado = 0
+        try:
 
-        inas_segunda_etapa[apellido] = resultado
+            valor = df_inas2.loc[
+                fila,
+                "INAS"
+            ]
 
+            if pd.notna(valor):
+                valor_inas2 = float(valor)
+
+        except Exception:
+            valor_inas2 = 0
+
+    # ----------------------------------------
+    # DIFERENCIA
+    # ----------------------------------------
+
+    resultado = valor_inas2 - valor_inas
+
+    if resultado < 0:
+        resultado = 0
+
+    inas_segunda_etapa[apellido] = resultado
     return True
+
 
 def solicitar_limite_faltas():
     """
@@ -1109,6 +1214,9 @@ def detectar_columnas_notas():
         elif texto.startswith("TP4"):
             columnas["TP4"] = columna
 
+        elif texto == "1P":
+            columnas["1P"] = columna
+
         elif "PRIMER PARCIAL" in texto:
             columnas["1P"] = columna
 
@@ -1175,39 +1283,29 @@ def obtener_datos_notas():
             "alumno": alumno,
 
             "TP1": obtener_nota(
-                df_notas.at[
-                    indice,
-                    columnas["TP1"]
-                ]
-            ),
+                df_notas.loc[indice],
+                "TP1"
+                ),
 
             "TP2": obtener_nota(
-                df_notas.at[
-                    indice,
-                    columnas["TP2"]
-                ]
-            ),
+                df_notas.loc[indice],
+                "TP2"
+                ),
 
             "1P": obtener_nota(
-                df_notas.at[
-                    indice,
-                    columnas["1P"]
-                ]
-            ),
+                df_notas.loc[indice],
+                "1P"
+                ),
 
             "TP3": obtener_nota(
-                df_notas.at[
-                    indice,
-                    columnas["TP3"]
-                ]
-            ),
+                df_notas.loc[indice],
+                "TP3"
+                ),
 
-            "TP4": obtener_nota(
-                df_notas.at[
-                    indice,
-                    columnas["TP4"]
-                ]
-            )
+            "TP4":obtener_nota(
+                df_notas.loc[indice],
+                "TP4"
+                )
         }
 
     return datos
@@ -1255,7 +1353,25 @@ def eliminar_hojas_no_necesarias(wb):
         LIB
         INAS
         INAS2
+
+    Si el archivo original contiene REPORTE1,
+    la renombra a REPORTE.
     """
+
+    # ----------------------------------------------------
+    # Convertir REPORTE1 en REPORTE
+    # ----------------------------------------------------
+
+    if "REPORTE1" in wb.sheetnames:
+
+        if "REPORTE" in wb.sheetnames:
+            del wb["REPORTE"]
+
+        wb["REPORTE1"].title = "REPORTE"
+
+    # ----------------------------------------------------
+    # Hojas necesarias en el archivo final
+    # ----------------------------------------------------
 
     hojas_necesarias = {
         "REPORTE",
@@ -1263,6 +1379,10 @@ def eliminar_hojas_no_necesarias(wb):
         "INAS",
         "INAS2"
     }
+
+    # ----------------------------------------------------
+    # Eliminar todas las demás hojas
+    # ----------------------------------------------------
 
     for nombre in list(wb.sheetnames):
 
@@ -1635,19 +1755,19 @@ def marcar_alumnos_excedidos_en_faltas(ws):
         if alumno == "":
             continue
 
-        prm2 = obtener_nota(
+        prm2 = convertir_nota(
             ws.cell(
                 fila,
                 columnas["PRM2"]
-            ).value
-        )
+                ).value
+            )
 
-        inas = obtener_nota(
+        inas = convertir_nota(
             ws.cell(
                 fila,
                 columnas["INAS"]
-            ).value
-        )
+                ).value
+            )
 
         # ----------------------------------------------------
         # Alumno regular excedido en faltas
@@ -1817,6 +1937,7 @@ def generar_archivo_final():
 
         eliminar_hojas_no_necesarias(wb)
 
+
         # ----------------------------------------------------
         # Verificar hojas necesarias
         # ----------------------------------------------------
@@ -1930,7 +2051,27 @@ if __name__ == "__main__":
         cerrar_ventana_progreso()
         sys.exit()
 
+    if not preparar_datos_segunda_etapa():
+        cerrar_ventana_progreso()
+        sys.exit()
+
     actualizar_progreso(
-        "Preparando validación de notas...",
-        70
+        "Generando archivo final...",
+        90
+    )
+
+    if not generar_archivo_final():
+        cerrar_ventana_progreso()
+        sys.exit()
+
+    actualizar_progreso(
+        "Proceso finalizado correctamente.",
+        100
+    )
+
+    cerrar_ventana_progreso()
+
+    messagebox.showinfo(
+        TITULO,
+        "El archivo fue generado correctamente."
     )
