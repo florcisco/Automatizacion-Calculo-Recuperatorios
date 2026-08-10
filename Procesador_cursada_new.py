@@ -1091,7 +1091,7 @@ def calcular_inasistencias_segunda_etapa():
 
             valor = df_inas2.loc[
                 fila,
-                "INAS"
+                "INAS2"
             ]
 
             if pd.notna(valor):
@@ -1531,212 +1531,531 @@ def preparar_reporte(ws):
 
     return fila_encabezado, columnas
 
+def preparar_reporte_final(ws):
+"""
+Prepara la hoja REPORTE desde cero.
 
-def escribir_notas_reporte(ws):
-    """
-    Escribe las notas del archivo de notas
-    en la hoja REPORTE.
-    """
+Estructura definitiva:
 
-    resultado = preparar_reporte(ws)
+ALUMNO
+TP1
+TP2
+PRM1
+1P
+TP3
+TP4
+PRM2
+INAS
+OBSERVACIONES
 
-    if resultado is False:
-        return False
+Se elimina el formato heredado y se aplica:
+- Fondo blanco
+- Encabezado gris claro
+- Texto negro
+"""
 
-    fila_encabezado, columnas = resultado
+# ----------------------------------------------------
+# Buscar encabezado actual
+# ----------------------------------------------------
 
-    datos_notas = obtener_datos_notas()
+fila_origen = None
 
-    if datos_notas is None:
-        return False
+for fila in range(1, ws.max_row + 1):
 
-    actualizar_progreso(
-        "Copiando notas al REPORTE...",
-        80
-    )
+    valores = []
 
-    for fila in range(
-        fila_encabezado + 1,
-        ws.max_row + 1
-    ):
+    for columna in range(1, ws.max_column + 1):
 
-        valor_alumno = ws.cell(
+        valor = ws.cell(
             fila,
-            columnas["ALUMNO"]
+            columna
         ).value
 
-        if valor_alumno is None:
-            continue
+        if valor is not None:
 
-        alumno = str(
-            valor_alumno
-        ).strip()
+            valores.append(
+                normalizar_texto(
+                    str(valor)
+                )
+            )
 
-        if alumno == "":
-            continue
+    if "ALUMNO" in valores:
 
-        apellido = normalizar_texto(
-            obtener_apellido(alumno)
+        fila_origen = fila
+        break
+
+if fila_origen is None:
+
+    mostrar_error(
+        "No fue posible localizar el encabezado "
+        "ALUMNO en la hoja REPORTE."
+    )
+
+    return False
+
+# ----------------------------------------------------
+# Obtener alumnos actuales
+# ----------------------------------------------------
+
+alumnos = []
+
+for fila in range(
+    fila_origen + 1,
+    ws.max_row + 1
+):
+
+    valor = ws.cell(
+        fila,
+        1
+    ).value
+
+    if valor is None:
+        continue
+
+    alumno = str(
+        valor
+    ).strip()
+
+    if alumno == "":
+        continue
+
+    alumnos.append(
+        alumno
+    )
+
+# ----------------------------------------------------
+# Limpiar completamente la hoja
+# ----------------------------------------------------
+
+for fila in range(
+    1,
+    ws.max_row + 1
+):
+
+    for columna in range(
+        1,
+        ws.max_column + 1
+    ):
+
+        celda = ws.cell(
+            fila,
+            columna
         )
 
-        if apellido not in datos_notas:
-            continue
+        celda.value = None
 
-        datos = datos_notas[apellido]
-
-        ws.cell(
-            fila,
-            columnas["TP1"]
-        ).value = datos["TP1"]
-
-        ws.cell(
-            fila,
-            columnas["TP2"]
-        ).value = datos["TP2"]
-
-        ws.cell(
-            fila,
-            columnas["1P"]
-        ).value = datos["1P"]
-
-        ws.cell(
-            fila,
-            columnas["TP3"]
-        ).value = datos["TP3"]
-
-        ws.cell(
-            fila,
-            columnas["TP4"]
-        ).value = datos["TP4"]
-
-        prm1 = round(
-            (
-                datos["TP1"]
-                +
-                datos["TP2"]
-            ) / 2,
-            1
+        celda.fill = PatternFill(
+            fill_type=None
         )
 
-        prm2 = round(
-            (
-                datos["TP3"]
-                +
-                datos["TP4"]
-            ) / 2,
-            1
+        celda.font = Font(
+            color="000000"
         )
 
-        ws.cell(
-            fila,
-            columnas["PRM1"]
-        ).value = prm1
+        celda.border = Border()
 
-        ws.cell(
-            fila,
-            columnas["PRM2"]
-        ).value = prm2
+        celda.alignment = Alignment(
+            vertical="center"
+        )
 
-    return True
+# ----------------------------------------------------
+# Encabezados definitivos
+# ----------------------------------------------------
+
+encabezados = [
+    "ALUMNO",
+    "TP1",
+    "TP2",
+    "PRM1",
+    "1P",
+    "TP3",
+    "TP4",
+    "PRM2",
+    "INAS",
+    "OBSERVACIONES"
+]
+
+encabezado_fill = PatternFill(
+    fill_type="solid",
+    fgColor="D9E1F2"
+)
+
+encabezado_font = Font(
+    bold=True,
+    color="000000"
+)
+
+for columna, nombre in enumerate(
+    encabezados,
+    start=1
+):
+
+    celda = ws.cell(
+        1,
+        columna
+    )
+
+    celda.value = nombre
+
+    celda.fill = encabezado_fill
+    celda.font = encabezado_font
+
+    celda.alignment = Alignment(
+        horizontal="center",
+        vertical="center"
+    )
+
+# ----------------------------------------------------
+# Escribir alumnos
+# ----------------------------------------------------
+
+for fila, alumno in enumerate(
+    alumnos,
+    start=2
+):
+
+    ws.cell(
+        fila,
+        1
+    ).value = alumno
+
+# ----------------------------------------------------
+# Formato general
+# ----------------------------------------------------
+
+for fila in range(
+    2,
+    len(alumnos) + 2
+):
+
+    for columna in range(
+        1,
+        11
+    ):
+
+        celda = ws.cell(
+            fila,
+            columna
+        )
+
+        celda.fill = PatternFill(
+            fill_type="solid",
+            fgColor="FFFFFF"
+        )
+
+        celda.font = Font(
+            color="000000"
+        )
+
+        celda.alignment = Alignment(
+            vertical="center"
+        )
+
+# ----------------------------------------------------
+# Anchos
+# ----------------------------------------------------
+
+ws.column_dimensions["A"].width = 35
+
+for columna in [
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H",
+    "I"
+]:
+
+    ws.column_dimensions[
+        columna
+    ].width = 12
+
+ws.column_dimensions["J"].width = 38
+
+ws.freeze_panes = "A2"
+
+return True
+
+
+def escribir_notas_reporte(ws):
+"""
+Escribe las notas del archivo de notas
+en la hoja REPORTE.
+"""
+
+```
+if not preparar_reporte_final(ws):
+    return False
+
+datos_notas = obtener_datos_notas()
+
+if datos_notas is None:
+    return False
+
+actualizar_progreso(
+    "Copiando notas al REPORTE...",
+    80
+)
+
+# Columnas definitivas
+columnas = {
+    "ALUMNO": 1,
+    "TP1": 2,
+    "TP2": 3,
+    "PRM1": 4,
+    "1P": 5,
+    "TP3": 6,
+    "TP4": 7,
+    "PRM2": 8,
+    "INAS": 9,
+    "OBSERVACION": 10
+}
+
+for fila in range(
+    2,
+    ws.max_row + 1
+):
+
+    valor_alumno = ws.cell(
+        fila,
+        columnas["ALUMNO"]
+    ).value
+
+    if valor_alumno is None:
+        continue
+
+    alumno = str(
+        valor_alumno
+    ).strip()
+
+    if alumno == "":
+        continue
+
+    apellido = normalizar_texto(
+        obtener_apellido(alumno)
+    )
+
+    if apellido not in datos_notas:
+        continue
+
+    datos = datos_notas[apellido]
+
+    ws.cell(
+        fila,
+        columnas["TP1"]
+    ).value = datos["TP1"]
+
+    ws.cell(
+        fila,
+        columnas["TP2"]
+    ).value = datos["TP2"]
+
+    ws.cell(
+        fila,
+        columnas["1P"]
+    ).value = datos["1P"]
+
+    ws.cell(
+        fila,
+        columnas["TP3"]
+    ).value = datos["TP3"]
+
+    ws.cell(
+        fila,
+        columnas["TP4"]
+    ).value = datos["TP4"]
+
+    prm1 = round(
+        (
+            datos["TP1"]
+            +
+            datos["TP2"]
+        ) / 2,
+        1
+    )
+
+    prm2 = round(
+        (
+            datos["TP3"]
+            +
+            datos["TP4"]
+        ) / 2,
+        1
+    )
+
+    ws.cell(
+        fila,
+        columnas["PRM1"]
+    ).value = prm1
+
+    ws.cell(
+        fila,
+        columnas["PRM2"]
+    ).value = prm2
+
+return True
 
 
 def escribir_inasistencias_reporte(ws):
-    """
-    Escribe en REPORTE las inasistencias
-    correspondientes únicamente a la segunda etapa.
+"""
+Escribe en REPORTE las inasistencias
+correspondientes únicamente a la segunda etapa.
 
-    INAS = INAS2 - INAS
-    """
+INAS = INAS2 - INAS primera etapa.
+"""
 
-    resultado = preparar_reporte(ws)
+actualizar_progreso(
+    "Copiando inasistencias...",
+    85
+)
 
-    if resultado is False:
-        return False
+columnas = {
+    "ALUMNO": 1,
+    "TP1": 2,
+    "TP2": 3,
+    "PRM1": 4,
+    "1P": 5,
+    "TP3": 6,
+    "TP4": 7,
+    "PRM2": 8,
+    "INAS": 9,
+    "OBSERVACION": 10
+}
 
-    fila_encabezado, columnas = resultado
+for fila in range(
+    2,
+    ws.max_row + 1
+):
 
-    actualizar_progreso(
-        "Copiando inasistencias...",
-        85
+    valor_alumno = ws.cell(
+        fila,
+        columnas["ALUMNO"]
+    ).value
+
+    if valor_alumno is None:
+        continue
+
+    alumno = str(
+        valor_alumno
+    ).strip()
+
+    if alumno == "":
+        continue
+
+    apellido = normalizar_texto(
+        obtener_apellido(alumno)
     )
 
-    alumnos_reporte = obtener_lista_alumnos(
-        df_reporte
-    )
+    if apellido in inas_segunda_etapa:
 
-    for fila in range(
-        fila_encabezado + 1,
-        ws.max_row + 1
-    ):
-
-        valor_alumno = ws.cell(
+        ws.cell(
             fila,
-            columnas["ALUMNO"]
-        ).value
+            columnas["INAS"]
+        ).value = inas_segunda_etapa[
+            apellido
+        ]
 
-        if valor_alumno is None:
-            continue
+    else:
 
-        alumno = str(
-            valor_alumno
-        ).strip()
+        ws.cell(
+            fila,
+            columnas["INAS"]
+        ).value = 0
 
-        if alumno == "":
-            continue
-
-        apellido = normalizar_texto(
-            obtener_apellido(alumno)
-        )
-
-        if apellido in inas_segunda_etapa:
-
-            ws.cell(
-                fila,
-                columnas["INAS"]
-            ).value = inas_segunda_etapa[
-                apellido
-            ]
-
-        else:
-
-            ws.cell(
-                fila,
-                columnas["INAS"]
-            ).value = 0
-
-    return True
+return True
 
 def marcar_alumnos_excedidos_en_faltas(ws):
     """
-    Marca en REPORTE a los alumnos que:
+    Aplica el formato final de las filas de REPORTE.
 
-        PRM2 >= 4
-        INAS > limite_faltas
+    ALUMNOS LIBRES:
+        - Fondo rojo en toda la fila.
+        - Fuente negra.
 
-    Escribe la observación:
-        ALUMNO REGULAR EXCEDIDO EN FALTAS
+    ALUMNOS REGULARES EXCEDIDOS EN FALTAS:
+        - Fondo blanco.
+        - Fuente roja.
+        - Observación:
+          ALUMNO REGULAR EXCEDIDO EN FALTAS
 
-    Toda la fuente de la fila queda en rojo.
+    RESTO:
+        - Fondo blanco.
+        - Fuente negra.
+        - Sin observación.
     """
 
-    resultado = preparar_reporte(ws)
-
-    if resultado is False:
-        return False
-
-    fila_encabezado, columnas = resultado
-
     actualizar_progreso(
-        "Verificando límite de faltas...",
+        "Aplicando formato final al REPORTE...",
         88
+    )
+
+    columnas = {
+        "ALUMNO": 1,
+        "TP1": 2,
+        "TP2": 3,
+        "PRM1": 4,
+        "1P": 5,
+        "TP3": 6,
+        "TP4": 7,
+        "PRM2": 8,
+        "INAS": 9,
+        "OBSERVACION": 10
+    }
+
+    # ----------------------------------------------------
+    # Colores
+    # ----------------------------------------------------
+
+    relleno_blanco = PatternFill(
+        fill_type="solid",
+        fgColor="FFFFFF"
+    )
+
+    relleno_rojo = PatternFill(
+        fill_type="solid",
+        fgColor="FF0000"
+    )
+
+    fuente_negra = Font(
+        color="000000"
     )
 
     fuente_roja = Font(
         color="FF0000"
     )
 
+    # ----------------------------------------------------
+    # Crear conjunto de apellidos de alumnos libres
+    # ----------------------------------------------------
+
+    apellidos_libres = set()
+
+    for alumno in lista_lib:
+
+        nombre = alumno.get(
+            "alumno"
+        )
+
+        if nombre:
+
+            apellido = normalizar_texto(
+                obtener_apellido(
+                    str(nombre).strip()
+                )
+            )
+
+            apellidos_libres.add(
+                apellido
+            )
+
+    # ----------------------------------------------------
+    # Recorrer REPORTE
+    # ----------------------------------------------------
+
     for fila in range(
-        fila_encabezado + 1,
+        2,
         ws.max_row + 1
     ):
 
@@ -1755,26 +2074,80 @@ def marcar_alumnos_excedidos_en_faltas(ws):
         if alumno == "":
             continue
 
+        apellido = normalizar_texto(
+            obtener_apellido(alumno)
+        )
+
+        # =================================================
+        # ALUMNO LIBRE
+        # =================================================
+
+        if apellido in apellidos_libres:
+
+            ws.cell(
+                fila,
+                columnas["OBSERVACION"]
+            ).value = None
+
+            for columna in range(
+                1,
+                11
+            ):
+
+                celda = ws.cell(
+                    fila,
+                    columna
+                )
+
+                celda.fill = relleno_rojo
+                celda.font = fuente_negra
+
+            continue
+
+        # =================================================
+        # ALUMNO REGULAR
+        # =================================================
+
+        # Primero dejamos toda la fila blanca/negra.
+        for columna in range(
+            1,
+            11
+        ):
+
+            celda = ws.cell(
+                fila,
+                columna
+            )
+
+            celda.fill = relleno_blanco
+            celda.font = fuente_negra
+
+        # -------------------------------------------------
+        # Obtener PRM2 e INAS
+        # -------------------------------------------------
+
         prm2 = convertir_nota(
             ws.cell(
                 fila,
                 columnas["PRM2"]
-                ).value
-            )
+            ).value
+        )
 
         inas = convertir_nota(
             ws.cell(
                 fila,
                 columnas["INAS"]
-                ).value
-            )
+            ).value
+        )
 
-        # ----------------------------------------------------
-        # Alumno regular excedido en faltas
-        # ----------------------------------------------------
+        # -------------------------------------------------
+        # Regular excedido en faltas
+        # -------------------------------------------------
 
         if (
-            prm2 >= 4
+            prm2 is not None
+            and inas is not None
+            and prm2 >= 4
             and inas > limite_faltas
         ):
 
@@ -1785,18 +2158,15 @@ def marcar_alumnos_excedidos_en_faltas(ws):
                 "ALUMNO REGULAR EXCEDIDO EN FALTAS"
             )
 
-            # Toda la fila en fuente roja
             for columna in range(
                 1,
-                ws.max_column + 1
+                11
             ):
 
-                celda = ws.cell(
+                ws.cell(
                     fila,
                     columna
-                )
-
-                celda.font = fuente_roja
+                ).font = fuente_roja
 
         else:
 
@@ -1806,6 +2176,7 @@ def marcar_alumnos_excedidos_en_faltas(ws):
             ).value = None
 
     return True
+
 
 def preparar_lib(ws):
     """
