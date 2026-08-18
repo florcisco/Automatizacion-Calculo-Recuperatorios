@@ -140,16 +140,21 @@ def obtener_lista_alumnos(df, columna_alumno="ALUMNO"):
     """
     Obtiene los alumnos de un DataFrame.
 
-    Devuelve un diccionario cuya clave es el apellido
-    normalizado y cuyo valor contiene la fila y el
-    nombre completo del alumno.
+    La clave utilizada para identificar a cada alumno
+    es el nombre completo normalizado.
+
+    También registra los apellidos repetidos,
+    ignorando mayúsculas, minúsculas y tildes.
     """
 
+    global apellidos_repetidos
+
     alumnos = {}
+    apellidos_encontrados = set()
 
     for indice, valor in df[columna_alumno].items():
 
-        if valor is None:
+        if pd.isna(valor):
             continue
 
         nombre = str(valor).strip()
@@ -157,16 +162,76 @@ def obtener_lista_alumnos(df, columna_alumno="ALUMNO"):
         if nombre == "":
             continue
 
+        # ------------------------------------------------
+        # CLAVE DEL ALUMNO
+        # ------------------------------------------------
+
+        clave = obtener_clave_alumno(
+            nombre
+        )
+
+        # ------------------------------------------------
+        # DETECTAR APELLIDO REPETIDO
+        # ------------------------------------------------
+
         apellido = normalizar_texto(
             obtener_apellido(nombre)
         )
 
-        alumnos[apellido] = {
+        if apellido in apellidos_encontrados:
+
+            if apellido not in apellidos_repetidos:
+
+                apellidos_repetidos.append(
+                    apellido
+                )
+
+        else:
+
+            apellidos_encontrados.add(
+                apellido
+            )
+
+        # ------------------------------------------------
+        # GUARDAR ALUMNO
+        # ------------------------------------------------
+
+        alumnos[clave] = {
             "fila": indice,
             "nombre": nombre
         }
 
     return alumnos
+
+def mostrar_alerta_apellidos_repetidos():
+    """
+    Muestra una alerta si se detectaron apellidos repetidos.
+
+    El programa continúa normalmente.
+    """
+
+    if not apellidos_repetidos:
+        return
+
+    apellidos = sorted(
+        set(apellidos_repetidos)
+    )
+
+    mensaje = (
+        "ATENCIÓN: MATERIA CON ALUMNOS "
+        "CON MISMO APELLIDO.\n\n"
+        "Se detectaron los siguientes "
+        "apellidos repetidos:\n\n"
+        + "\n".join(
+            f"• {apellido}"
+            for apellido in apellidos
+        )
+    )
+
+    messagebox.showwarning(
+        TITULO,
+        mensaje
+    )
     
 def quitar_tildes(texto):
     """
@@ -189,15 +254,52 @@ def quitar_tildes(texto):
 def normalizar_texto(texto):
     """
     Convierte un texto a un formato estándar:
+
     - Sin tildes
     - Sin espacios al principio y al final
     - En mayúsculas
+    - Unifica saltos de línea
+    - Elimina espacios repetidos
     """
+
+    if texto is None:
+        return ""
 
     texto = quitar_tildes(texto)
 
-    return texto.strip().upper()
+    texto = str(texto).strip().upper()
 
+    # ----------------------------------------------------
+    # Unificar saltos de línea y espacios repetidos
+    # ----------------------------------------------------
+
+    texto = " ".join(
+        texto.split()
+    )
+
+    return texto
+
+
+# ------------------------------------------------------------
+
+def obtener_clave_alumno(nombre_completo):
+    """
+    Genera una clave única para identificar al alumno.
+
+    Utiliza el nombre completo normalizado:
+    - Sin tildes
+    - Sin espacios al principio y al final
+    - En mayúsculas
+
+    El apellido NO se utiliza como identificador.
+    """
+
+    if nombre_completo is None:
+        return ""
+
+    return normalizar_texto(
+        str(nombre_completo)
+    )
 
 # ------------------------------------------------------------
 
@@ -439,6 +541,8 @@ VALORES_ESPECIALES = [
 # VARIABLES GLOBALES
 # ============================================================
 
+diferencias_1et = False
+
 limite_faltas = None
 archivo_salida = None
 
@@ -611,10 +715,36 @@ def validar_archivo_inasistencias():
 
     try:
 
-        libro = load_workbook(
-            archivo_inasistencias,
-            read_only=True
-        )
+        if archivo_inasistencias.lower().endswith(".xlsx"):
+
+            libro = load_workbook(
+                archivo_inasistencias,
+                read_only=True
+            )
+
+            hojas = libro.sheetnames
+
+            libro.close()
+
+        elif archivo_inasistencias.lower().endswith(".ods"):
+
+            libro = pd.ExcelFile(
+                archivo_inasistencias,
+                engine="odf"
+            )
+
+            hojas = libro.sheet_names
+
+            libro.close()
+
+        else:
+
+            mostrar_error(
+                "El archivo de inasistencias debe ser "
+                "un archivo .xlsx o .ods."
+            )
+
+            return False
 
     except Exception as e:
 
@@ -623,8 +753,6 @@ def validar_archivo_inasistencias():
         )
 
         return False
-
-    hojas = libro.sheetnames
 
     faltantes = []
 
@@ -639,7 +767,7 @@ def validar_archivo_inasistencias():
         texto = "\n".join(faltantes)
 
         mostrar_error(
-           "El archivo de inasistencias no es válido.\n\n"
+            "El archivo de inasistencias no es válido.\n\n"
             "Faltan las siguientes hojas:\n\n"
             f"{texto}"
         )
@@ -690,8 +818,13 @@ def validar_coincidencia_alumnos():
         35
     )
 
-    alumnos_notas = obtener_lista_alumnos(df_notas)
-    alumnos_reporte = obtener_lista_alumnos(df_reporte)
+    alumnos_notas = obtener_lista_alumnos(
+        df_notas
+    )
+
+    alumnos_reporte = obtener_lista_alumnos(
+        df_reporte
+    )
 
     faltan_en_reporte = sorted(
         set(alumnos_notas.keys()) -
@@ -703,8 +836,17 @@ def validar_coincidencia_alumnos():
         set(alumnos_notas.keys())
     )
 
+    # ----------------------------------------------------
+    # SI COINCIDEN TODOS LOS ALUMNOS
+    # ----------------------------------------------------
+
     if not faltan_en_reporte and not faltan_en_notas:
+
         return True
+
+    # ----------------------------------------------------
+    # CONSTRUIR MENSAJE DE ERROR
+    # ----------------------------------------------------
 
     mensaje = ""
 
@@ -716,12 +858,18 @@ def validar_coincidencia_alumnos():
         )
 
         for alumno in faltan_en_reporte:
-            mensaje += f"• {alumno}\n"
+
+            mensaje += (
+                f"• {alumno}\n"
+            )
 
     if faltan_en_notas:
 
         if mensaje != "":
-            mensaje += "\n-----------------------------\n\n"
+
+            mensaje += (
+                "\n-----------------------------\n\n"
+            )
 
         mensaje += (
             "Alumnos presentes en REPORTE y ausentes "
@@ -729,9 +877,14 @@ def validar_coincidencia_alumnos():
         )
 
         for alumno in faltan_en_notas:
-            mensaje += f"• {alumno}\n"
 
-    mostrar_error(mensaje)
+            mensaje += (
+                f"• {alumno}\n"
+            )
+
+    mostrar_error(
+        mensaje
+    )
 
     return False
     
@@ -831,6 +984,166 @@ def cargar_archivo_notas():
 
     return True
 
+def validar_notas_completas():
+    """
+    Verifica que todos los alumnos tengan notas válidas
+    en TP1, TP2, 1P, TP3 y TP4.
+
+    Se consideran inválidos:
+
+        - Celdas vacías.
+        - Valores que no puedan convertirse en nota.
+        - Notas menores que 0.
+        - Notas mayores que 10.
+
+    La letra A se considera válida y equivale a 0.
+
+    Si encuentra errores:
+        - Muestra una lista con los alumnos afectados.
+        - Indica qué nota tiene el problema.
+        - Detiene el procesamiento.
+
+    Devuelve:
+        True  -> todas las notas son válidas.
+        False -> hay notas inválidas o faltantes.
+    """
+
+    actualizar_progreso(
+        "Verificando notas...",
+        30
+    )
+
+    columnas_notas = [
+        "TP1",
+        "TP2",
+        "1P",
+        "TP3",
+        "TP4"
+    ]
+
+    notas_invalidas = []
+
+    # ----------------------------------------------------
+    # RECORRER TODOS LOS ALUMNOS
+    # ----------------------------------------------------
+
+    for indice in df_notas.index:
+
+        alumno = df_notas.at[
+            indice,
+            "ALUMNO"
+        ]
+
+        if pd.isna(alumno):
+            continue
+
+        alumno = str(alumno).strip()
+
+        if alumno == "":
+            continue
+
+        # ------------------------------------------------
+        # REVISAR CADA NOTA
+        # ------------------------------------------------
+
+        for columna in columnas_notas:
+
+            valor = df_notas.at[
+                indice,
+                columna
+            ]
+
+            # --------------------------------------------
+            # CELDA VACÍA
+            # --------------------------------------------
+
+            if pd.isna(valor):
+
+                notas_invalidas.append(
+                    f"• {alumno} — {columna}: VACÍA"
+                )
+
+                continue
+
+            texto = str(valor).strip()
+
+            if texto == "":
+
+                notas_invalidas.append(
+                    f"• {alumno} — {columna}: VACÍA"
+                )
+
+                continue
+
+            # --------------------------------------------
+            # NOTA INVÁLIDA
+            # --------------------------------------------
+
+            nota = convertir_nota(valor)
+
+            if nota is None:
+
+                notas_invalidas.append(
+                    f"• {alumno} — {columna}: "
+                    f"'{texto}' no es una nota válida"
+                )
+
+                continue
+
+            # --------------------------------------------
+            # NOTA FUERA DEL RANGO
+            # --------------------------------------------
+
+            if (
+                nota < NOTA_MINIMA
+                or
+                nota > NOTA_MAXIMA
+            ):
+
+                notas_invalidas.append(
+                    f"• {alumno} — {columna}: "
+                    f"{nota} fuera del rango permitido "
+                    f"({NOTA_MINIMA} a {NOTA_MAXIMA})"
+                )
+
+                continue
+
+            # --------------------------------------------
+            # NOTA CON DECIMALES
+            # --------------------------------------------
+
+            if not nota.is_integer():
+
+                notas_invalidas.append(
+                    f"• {alumno} — {columna}: "
+                    f"{nota} no es una nota entera"
+                )
+
+                continue
+
+    # ----------------------------------------------------
+    # TODAS LAS NOTAS SON VÁLIDAS
+    # ----------------------------------------------------
+
+    if not notas_invalidas:
+        return True
+
+    # ----------------------------------------------------
+    # HAY NOTAS INVÁLIDAS
+    # ----------------------------------------------------
+
+    mensaje = (
+        "NO SE PUEDE CONTINUAR.\n\n"
+        "Se encontraron notas faltantes o inválidas:\n\n"
+        + "\n".join(notas_invalidas)
+        + "\n\n"
+        "Corrija las notas antes de volver a ejecutar "
+        "el programa."
+    )
+
+    mostrar_error(mensaje)
+
+    return False
 
 def cargar_archivo_inasistencias():
 
@@ -920,9 +1233,29 @@ def leer_datos():
     if not cargar_archivo_notas():
         return False
 
+    if not validar_notas_completas():
+        return False
+
     if not cargar_archivo_inasistencias():
         return False
-        
+
+    # ----------------------------------------------------
+    # REGISTRAR APELLIDOS REPETIDOS
+    # ----------------------------------------------------
+
+    global apellidos_repetidos
+
+    apellidos_repetidos = []
+
+    obtener_lista_alumnos(df_notas)
+    obtener_lista_alumnos(df_reporte)
+    obtener_lista_alumnos(df_inas)
+    obtener_lista_alumnos(df_inas2)
+
+    # ----------------------------------------------------
+    # VERIFICAR COINCIDENCIA DE ALUMNOS
+    # ----------------------------------------------------
+
     if not validar_coincidencia_alumnos():
         return False
 
@@ -1015,9 +1348,13 @@ def calcular_inasistencias_segunda_etapa():
     """
     Calcula las inasistencias correspondientes
     únicamente a la segunda etapa.
-    
-    ```
+
     INAS segunda etapa = INAS2 - INAS primera etapa.
+
+    El alumno se identifica mediante su nombre completo
+    normalizado.
+
+    Si el resultado es negativo, se considera 0.
     """
 
     global df_reporte
@@ -1028,88 +1365,92 @@ def calcular_inasistencias_segunda_etapa():
     actualizar_progreso(
         "Calculando inasistencias de la segunda etapa...",
         55
-        )
+    )
 
     inas_segunda_etapa = {}
 
     alumnos_reporte = obtener_lista_alumnos(
         df_reporte
-        )
+    )
 
     alumnos_inas = obtener_lista_alumnos(
         df_inas
-        )
+    )
 
     alumnos_inas2 = obtener_lista_alumnos(
         df_inas2
-        )
+    )
 
-    for apellido in alumnos_reporte.keys():
+    # ------------------------------------------------
+    # RECORRER TODOS LOS ALUMNOS DEL REPORTE
+    # ------------------------------------------------
+
+    for clave in alumnos_reporte.keys():
+
         valor_inas = 0
         valor_inas2 = 0
 
-    # ----------------------------------------
-    # INAS PRIMERA ETAPA
-    # ----------------------------------------
+        # ------------------------------------------------
+        # INAS PRIMERA ETAPA
+        # ------------------------------------------------
 
-    if apellido in alumnos_inas:
+        if clave in alumnos_inas:
 
-        datos = alumnos_inas[apellido]
+            datos = alumnos_inas[clave]
 
-        if isinstance(datos, dict):
             fila = datos.get("fila")
-        else:
-            fila = datos
 
-        try:
+            try:
 
-            valor = df_inas.loc[
-                fila,
-                "INAS"
-            ]
+                valor = df_inas.loc[
+                    fila,
+                    "INAS"
+                ]
 
-            if pd.notna(valor):
-                valor_inas = float(valor)
+                if pd.notna(valor):
+                    valor_inas = float(valor)
 
-        except Exception:
-            valor_inas = 0
+            except Exception:
+                valor_inas = 0
 
-    # ----------------------------------------
-    # INAS ACUMULADAS / SEGUNDA ETAPA
-    # ----------------------------------------
+        # ------------------------------------------------
+        # INAS ACUMULADAS / INAS2
+        # ------------------------------------------------
 
-    if apellido in alumnos_inas2:
+        if clave in alumnos_inas2:
 
-        datos = alumnos_inas2[apellido]
+            datos = alumnos_inas2[clave]
 
-        if isinstance(datos, dict):
             fila = datos.get("fila")
-        else:
-            fila = datos
 
-        try:
+            try:
 
-            valor = df_inas2.loc[
-                fila,
-                "INAS2"
-            ]
+                valor = df_inas2.loc[
+                    fila,
+                    "INAS2"
+                ]
 
-            if pd.notna(valor):
-                valor_inas2 = float(valor)
+                if pd.notna(valor):
+                    valor_inas2 = float(valor)
 
-        except Exception:
-            valor_inas2 = 0
+            except Exception:
+                valor_inas2 = 0
 
-    # ----------------------------------------
-    # DIFERENCIA
-    # ----------------------------------------
+        # ------------------------------------------------
+        # CALCULAR SEGUNDA ETAPA
+        # ------------------------------------------------
 
-    resultado = valor_inas2 - valor_inas
+        resultado = (
+            valor_inas2
+            -
+            valor_inas
+        )
 
-    if resultado < 0:
-        resultado = 0
+        if resultado < 0:
+            resultado = 0
 
-    inas_segunda_etapa[apellido] = resultado
+        inas_segunda_etapa[clave] = resultado
+
     return True
 
 
@@ -1184,78 +1525,15 @@ from openpyxl import load_workbook
 from openpyxl.styles import PatternFill, Font
 
 
-def detectar_columnas_notas():
-    """
-    Detecta las columnas del archivo de notas a partir
-    del texto de sus encabezados.
-
-    No depende de que las columnas se llamen exactamente
-    TP1, TP2, TP3, TP4 o 1P.
-    """
-
-    columnas = {}
-
-    for columna in df_notas.columns:
-
-        texto = str(columna).upper().strip()
-
-        if texto == "ALUMNO":
-            columnas["ALUMNO"] = columna
-
-        elif texto.startswith("TP1"):
-            columnas["TP1"] = columna
-
-        elif texto.startswith("TP2"):
-            columnas["TP2"] = columna
-
-        elif texto.startswith("TP3"):
-            columnas["TP3"] = columna
-
-        elif texto.startswith("TP4"):
-            columnas["TP4"] = columna
-
-        elif texto == "1P":
-            columnas["1P"] = columna
-
-        elif "PRIMER PARCIAL" in texto:
-            columnas["1P"] = columna
-
-        elif "PROPUESTA" in texto:
-            columnas["PROPUESTA"] = columna
-
-    columnas_faltantes = []
-
-    for nombre in ["ALUMNO", "TP1", "TP2", "1P", "TP3", "TP4"]:
-        if nombre not in columnas:
-            columnas_faltantes.append(nombre)
-
-    if columnas_faltantes:
-
-        mostrar_error(
-            "No se pudieron identificar todas las columnas "
-            "necesarias del archivo de notas.\n\n"
-            "Faltan:\n"
-            + "\n".join(columnas_faltantes)
-        )
-
-        return None
-
-    return columnas
-
 
 def obtener_datos_notas():
     """
     Convierte el DataFrame de notas en un diccionario
-    indexado por apellido normalizado.
+    indexado por el nombre completo normalizado del alumno.
 
-    Esto permite relacionar las notas con REPORTE,
-    INAS e INAS2.
+    El nombre completo se utiliza como identificador
+    para evitar conflictos entre alumnos con el mismo apellido.
     """
-
-    columnas = detectar_columnas_notas()
-
-    if columnas is None:
-        return None
 
     datos = {}
 
@@ -1263,10 +1541,10 @@ def obtener_datos_notas():
 
         alumno = df_notas.at[
             indice,
-            columnas["ALUMNO"]
+            "ALUMNO"
         ]
 
-        if alumno is None:
+        if pd.isna(alumno):
             continue
 
         alumno = str(alumno).strip()
@@ -1274,38 +1552,38 @@ def obtener_datos_notas():
         if alumno == "":
             continue
 
-        apellido = normalizar_texto(
-            obtener_apellido(alumno)
+        clave = obtener_clave_alumno(
+            alumno
         )
 
-        datos[apellido] = {
+        datos[clave] = {
 
             "alumno": alumno,
 
             "TP1": obtener_nota(
                 df_notas.loc[indice],
                 "TP1"
-                ),
+            ),
 
             "TP2": obtener_nota(
                 df_notas.loc[indice],
                 "TP2"
-                ),
+            ),
 
             "1P": obtener_nota(
                 df_notas.loc[indice],
                 "1P"
-                ),
+            ),
 
             "TP3": obtener_nota(
                 df_notas.loc[indice],
                 "TP3"
-                ),
+            ),
 
-            "TP4":obtener_nota(
+            "TP4": obtener_nota(
                 df_notas.loc[indice],
                 "TP4"
-                )
+            )
         }
 
     return datos
@@ -1610,6 +1888,40 @@ def preparar_reporte_final(ws):
         return False
 
     # ----------------------------------------------------
+    # Buscar columna ALUMNO
+    # ----------------------------------------------------
+
+    columna_alumno = None
+
+    for columna in range(
+        1,
+        ws.max_column + 1
+    ):
+
+        valor = ws.cell(
+            fila_origen,
+            columna
+        ).value
+
+        if valor is None:
+            continue
+
+        if normalizar_texto(valor) == "ALUMNO":
+
+            columna_alumno = columna
+
+            break
+
+    if columna_alumno is None:
+
+        mostrar_error(
+            "No fue posible localizar la columna "
+            "ALUMNO en la hoja REPORTE."
+        )
+
+        return False
+
+    # ----------------------------------------------------
     # Obtener alumnos actuales
     # ----------------------------------------------------
 
@@ -1622,7 +1934,7 @@ def preparar_reporte_final(ws):
 
         valor = ws.cell(
             fila,
-            1
+            columna_alumno
         ).value
 
         if valor is None:
@@ -1691,7 +2003,10 @@ def preparar_reporte_final(ws):
         "OBSERVACIONES"
     ]
 
-    # Gris claro
+    # ----------------------------------------------------
+    # Formato del encabezado
+    # ----------------------------------------------------
+
     encabezado_fill = PatternFill(
         fill_type="solid",
         fgColor="D9E1F2"
@@ -1804,6 +2119,213 @@ def preparar_reporte_final(ws):
 
     return True
 
+def preparar_reporte_salida(ws):
+    """
+    Prepara la hoja REPORTE para la segunda etapa.
+
+    Conserva el formato original del archivo descargado.
+    Elimina las columnas que no necesitamos y agrega
+    las nuevas columnas manteniendo el orden definitivo.
+    """
+
+    actualizar_progreso(
+        "Preparando hoja REPORTE...",
+        75
+    )
+
+    # ----------------------------------------------------
+    # Buscar encabezado
+    # ----------------------------------------------------
+
+    fila_encabezado = obtener_fila_encabezado(ws)
+
+    if fila_encabezado is None:
+
+        mostrar_error(
+            "No se pudo encontrar el encabezado "
+            "de la hoja REPORTE."
+        )
+
+        return False
+
+    # ----------------------------------------------------
+    # Leer encabezados actuales
+    # ----------------------------------------------------
+
+    encabezados_actuales = {}
+
+    for columna in range(
+        1,
+        ws.max_column + 1
+    ):
+
+        valor = ws.cell(
+            fila_encabezado,
+            columna
+        ).value
+
+        if valor is None:
+            continue
+
+        texto = str(
+            valor
+        ).strip().upper()
+
+        encabezados_actuales[texto] = columna
+
+    # ----------------------------------------------------
+    # Verificar ALUMNO
+    # ----------------------------------------------------
+
+    if "ALUMNO" not in encabezados_actuales:
+
+        mostrar_error(
+            "No se pudo encontrar la columna "
+            "'ALUMNO' en la hoja REPORTE."
+        )
+
+        return False
+
+    # ----------------------------------------------------
+    # Guardar los alumnos antes de modificar columnas
+    # ----------------------------------------------------
+
+    alumnos = []
+
+    columna_alumno = encabezados_actuales["ALUMNO"]
+
+    for fila in range(
+        fila_encabezado + 1,
+        ws.max_row + 1
+    ):
+
+        valor = ws.cell(
+            fila,
+            columna_alumno
+        ).value
+
+        if valor is None:
+            continue
+
+        alumno = str(
+            valor
+        ).strip()
+
+        if alumno == "":
+            continue
+
+        alumnos.append(
+            alumno
+        )
+
+    # ----------------------------------------------------
+    # Eliminar columnas posteriores a ALUMNO
+    #
+    # Esto permite reconstruir únicamente las columnas
+    # que necesitamos, conservando la primera columna
+    # y su formato original.
+    # ----------------------------------------------------
+
+    if ws.max_column > 1:
+
+        ws.delete_cols(
+            2,
+            ws.max_column - 1
+        )
+
+    # ----------------------------------------------------
+    # Encabezados definitivos
+    # ----------------------------------------------------
+
+    encabezados = [
+        "ALUMNO",
+        "TP1",
+        "TP2",
+        "PRM1",
+        "1P",
+        "TP3",
+        "TP4",
+        "PRM2",
+        "INAS",
+        "OBSERVACIONES"
+    ]
+
+    # ----------------------------------------------------
+    # Escribir encabezados
+    # ----------------------------------------------------
+
+    for columna, nombre in enumerate(
+        encabezados,
+        start=1
+    ):
+
+        celda = ws.cell(
+            fila_encabezado,
+            columna
+        )
+
+        celda.value = nombre
+
+    # ----------------------------------------------------
+    # Restaurar alumnos
+    # ----------------------------------------------------
+
+    for fila, alumno in enumerate(
+        alumnos,
+        start=fila_encabezado + 1
+    ):
+
+        ws.cell(
+            fila,
+            1
+        ).value = alumno
+
+    # ----------------------------------------------------
+    # Limpiar las nuevas columnas
+    # ----------------------------------------------------
+
+    for fila in range(
+        fila_encabezado + 1,
+        ws.max_row + 1
+    ):
+
+        for columna in range(
+            2,
+            11
+        ):
+
+            ws.cell(
+                fila,
+                columna
+            ).value = None
+
+    # ----------------------------------------------------
+    # Anchos
+    # ----------------------------------------------------
+
+    ws.column_dimensions["A"].width = 35
+
+    for columna in [
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H",
+        "I"
+    ]:
+
+        ws.column_dimensions[
+            columna
+        ].width = 12
+
+    ws.column_dimensions[
+        "J"
+    ].width = 38
+
+    return True
+
 
 def escribir_notas_reporte(ws):
     """
@@ -1857,14 +2379,13 @@ def escribir_notas_reporte(ws):
         if alumno == "":
             continue
 
-        apellido = normalizar_texto(
-            obtener_apellido(alumno)
-        )
-
-        if apellido not in datos_notas:
+        clave = obtener_clave_alumno(
+            alumno
+            )
+        if clave not in datos_notas:
             continue
 
-        datos = datos_notas[apellido]
+        datos = datos_notas[clave]
 
         ws.cell(
             fila,
@@ -1966,17 +2487,16 @@ def escribir_inasistencias_reporte(ws):
         if alumno == "":
             continue
 
-        apellido = normalizar_texto(
-            obtener_apellido(alumno)
-        )
+        clave = obtener_clave_alumno(
+            alumno
+            )
 
-        if apellido in inas_segunda_etapa:
-
+        if clave in inas_segunda_etapa:
             ws.cell(
                 fila,
                 columnas["INAS"]
             ).value = inas_segunda_etapa[
-                apellido
+            clave
             ]
 
         else:
@@ -1987,6 +2507,417 @@ def escribir_inasistencias_reporte(ws):
             ).value = 0
 
     return True
+
+def validar_diferencias_1et(wb):
+    """
+    Compara TP1 y TP2 entre el archivo de inasistencias
+    y el archivo de notas.
+
+    Genera la hoja 1ET con el resultado de la comparación.
+
+    Devuelve:
+        True  -> hay diferencias
+        False -> no hay diferencias
+    """
+
+    global diferencias_1et
+
+    diferencias_1et = False
+
+    # ----------------------------------------------------
+    # Eliminar 1ET si ya existiera
+    # ----------------------------------------------------
+
+    if "1ET" in wb.sheetnames:
+        del wb["1ET"]
+
+    ws_1et = wb.create_sheet("1ET")
+
+    # ----------------------------------------------------
+    # Encabezado
+    # ----------------------------------------------------
+
+    ws_1et["A1"] = "CONTROL DE PRIMERA ETAPA"
+
+    ws_1et["A1"].font = Font(
+        bold=True
+    )
+
+    # ----------------------------------------------------
+    # Obtener columnas del REPORTE
+    # ----------------------------------------------------
+
+    resultado = obtener_columnas_reporte(
+        wb["REPORTE"]
+    )
+
+    if resultado is None:
+        return False
+
+    fila_encabezado, columnas = resultado
+
+    # ----------------------------------------------------
+    # Obtener datos del archivo de notas
+    # ----------------------------------------------------
+
+    datos_notas = obtener_datos_notas()
+
+    if datos_notas is None:
+        return False
+
+    # ----------------------------------------------------
+    # Encabezados del detalle
+    # ----------------------------------------------------
+
+    ws_1et["A3"] = "ALUMNO"
+    ws_1et["B3"] = "TP1 REPORTE"
+    ws_1et["C3"] = "TP1 NOTAS"
+    ws_1et["D3"] = "TP2 REPORTE"
+    ws_1et["E3"] = "TP2 NOTAS"
+
+    encabezado_fill = PatternFill(
+        fill_type="solid",
+        fgColor="D9D9D9"
+    )
+
+    encabezado_font = Font(
+        bold=True,
+        color="000000"
+    )
+
+    for columna in range(1, 6):
+
+        celda = ws_1et.cell(
+            3,
+            columna
+        )
+
+        celda.fill = encabezado_fill
+        celda.font = encabezado_font
+
+    fila_salida = 4
+
+    # ----------------------------------------------------
+    # Recorrer alumnos del REPORTE
+    # ----------------------------------------------------
+
+    ws_reporte = wb["REPORTE"]
+
+    for fila in range(
+        fila_encabezado + 1,
+        ws_reporte.max_row + 1
+    ):
+
+        valor_alumno = ws_reporte.cell(
+            fila,
+            columnas["ALUMNO"]
+        ).value
+
+        if valor_alumno is None:
+            continue
+
+        alumno = str(
+            valor_alumno
+        ).strip()
+
+        if alumno == "":
+            continue
+
+        clave = obtener_clave_alumno(
+            alumno
+        )
+
+        if clave not in datos_notas:
+            continue
+
+        datos = datos_notas[clave]
+
+        # ------------------------------------------------
+        # Valores del REPORTE
+        # ------------------------------------------------
+
+        tp1_reporte = convertir_nota(
+            ws_reporte.cell(
+                fila,
+                columnas["TP1"]
+            ).value
+        )
+
+        tp2_reporte = convertir_nota(
+            ws_reporte.cell(
+                fila,
+                columnas["TP2"]
+            ).value
+        )
+
+        # ------------------------------------------------
+        # Valores del archivo de notas
+        # ------------------------------------------------
+
+        tp1_notas = convertir_nota(
+            datos["TP1"]
+        )
+
+        tp2_notas = convertir_nota(
+            datos["TP2"]
+        )
+
+        diferencia_tp1 = (
+            tp1_reporte != tp1_notas
+        )
+
+        diferencia_tp2 = (
+            tp2_reporte != tp2_notas
+        )
+
+        # ------------------------------------------------
+        # Si hay alguna diferencia
+        # ------------------------------------------------
+
+        if diferencia_tp1 or diferencia_tp2:
+
+            diferencias_1et = True
+
+            ws_1et.cell(
+                fila_salida,
+                1
+            ).value = alumno
+
+            if diferencia_tp1:
+
+                ws_1et.cell(
+                    fila_salida,
+                    2
+                ).value = tp1_reporte
+
+                ws_1et.cell(
+                    fila_salida,
+                    3
+                ).value = tp1_notas
+
+            if diferencia_tp2:
+
+                ws_1et.cell(
+                    fila_salida,
+                    4
+                ).value = tp2_reporte
+
+                ws_1et.cell(
+                    fila_salida,
+                    5
+                ).value = tp2_notas
+
+            fila_salida += 1
+
+    # ----------------------------------------------------
+    # Resultado si no hay diferencias
+    # ----------------------------------------------------
+
+    if not diferencias_1et:
+
+        ws_1et["A3"] = "SIN DIFERENCIA CON 1ET"
+
+        ws_1et["A3"].font = Font(
+            bold=True
+        )
+
+        ws_1et.column_dimensions["A"].width = 30
+
+        return False
+
+    # ----------------------------------------------------
+    # Formato de la hoja
+    # ----------------------------------------------------
+
+    ws_1et.column_dimensions["A"].width = 35
+    ws_1et.column_dimensions["B"].width = 15
+    ws_1et.column_dimensions["C"].width = 15
+    ws_1et.column_dimensions["D"].width = 15
+    ws_1et.column_dimensions["E"].width = 15
+
+    ws_1et.freeze_panes = "A4"
+
+    return True
+
+def marcar_libres_en_reporte(ws):
+    """
+    Marca en rojo en REPORTE a los alumnos que quedaron LIB.
+
+    Los alumnos libres tienen:
+        - Fondo rojo en toda la fila.
+        - Fuente negra.
+
+    Los demás alumnos conservan:
+        - Fondo blanco.
+        - Fuente negra.
+
+    El alumno se identifica mediante su nombre completo
+    normalizado, no mediante el apellido.
+    """
+
+    actualizar_progreso(
+        "Marcando alumnos libres en REPORTE...",
+        93
+    )
+
+    # ----------------------------------------------------
+    # Buscar encabezado
+    # ----------------------------------------------------
+
+    fila_encabezado = obtener_fila_encabezado(ws)
+
+    if fila_encabezado is None:
+
+        mostrar_error(
+            "No se pudo encontrar el encabezado "
+            "de la hoja REPORTE."
+        )
+
+        return False
+
+    # ----------------------------------------------------
+    # Buscar columna ALUMNO
+    # ----------------------------------------------------
+
+    columna_alumno = None
+
+    for columna in range(
+        1,
+        ws.max_column + 1
+    ):
+
+        valor = ws.cell(
+            fila_encabezado,
+            columna
+        ).value
+
+        if valor is None:
+            continue
+
+        if str(
+            valor
+        ).strip().upper() == "ALUMNO":
+
+            columna_alumno = columna
+            break
+
+    if columna_alumno is None:
+
+        mostrar_error(
+            "No se encontró la columna "
+            "'ALUMNO' en REPORTE."
+        )
+
+        return False
+
+    # ----------------------------------------------------
+    # Fondo blanco y fuente negra para todos
+    # ----------------------------------------------------
+
+    fondo_blanco = PatternFill(
+        fill_type="solid",
+        fgColor="FFFFFF"
+    )
+
+    fuente_negra = Font(
+        color="000000"
+    )
+
+    for fila in range(
+        fila_encabezado + 1,
+        ws.max_row + 1
+    ):
+
+        for columna in range(
+            1,
+            ws.max_column + 1
+        ):
+
+            celda = ws.cell(
+                fila,
+                columna
+            )
+
+            celda.fill = fondo_blanco
+            celda.font = fuente_negra
+
+    # ----------------------------------------------------
+    # Crear conjunto de alumnos libres
+    # ----------------------------------------------------
+
+    alumnos_libres = set()
+
+    for alumno in lista_lib:
+
+        nombre = alumno.get(
+            "alumno"
+        )
+
+        if not nombre:
+            continue
+
+        clave = obtener_clave_alumno(
+            str(nombre)
+        )
+
+        alumnos_libres.add(
+            clave
+        )
+
+    # ----------------------------------------------------
+    # Fondo rojo para alumnos LIB
+    # ----------------------------------------------------
+
+    fondo_rojo = PatternFill(
+        fill_type="solid",
+        fgColor="FF0000"
+    )
+
+    # ----------------------------------------------------
+    # Buscar alumnos en REPORTE
+    # ----------------------------------------------------
+
+    for fila in range(
+        fila_encabezado + 1,
+        ws.max_row + 1
+    ):
+
+        valor = ws.cell(
+            fila,
+            columna_alumno
+        ).value
+
+        if valor is None:
+            continue
+
+        alumno = str(
+            valor
+        ).strip()
+
+        if alumno == "":
+            continue
+
+        clave = obtener_clave_alumno(
+            alumno
+        )
+
+        if clave in alumnos_libres:
+
+            for columna in range(
+                1,
+                ws.max_column + 1
+            ):
+
+                celda = ws.cell(
+                    fila,
+                    columna
+                )
+
+                celda.fill = fondo_rojo
+                celda.font = fuente_negra
+
+    return True
+
 
 def marcar_alumnos_excedidos_en_faltas(ws):
     """
@@ -2006,6 +2937,9 @@ def marcar_alumnos_excedidos_en_faltas(ws):
         - Fondo blanco.
         - Fuente negra.
         - Sin observación.
+
+    El alumno se identifica mediante su nombre completo
+    normalizado, no mediante el apellido.
     """
 
     actualizar_progreso(
@@ -2049,10 +2983,10 @@ def marcar_alumnos_excedidos_en_faltas(ws):
     )
 
     # ----------------------------------------------------
-    # Crear conjunto de apellidos de alumnos libres
+    # Crear conjunto de alumnos libres
     # ----------------------------------------------------
 
-    apellidos_libres = set()
+    alumnos_libres = set()
 
     for alumno in lista_lib:
 
@@ -2062,14 +2996,12 @@ def marcar_alumnos_excedidos_en_faltas(ws):
 
         if nombre:
 
-            apellido = normalizar_texto(
-                obtener_apellido(
-                    str(nombre).strip()
-                )
+            clave = obtener_clave_alumno(
+                str(nombre).strip()
             )
 
-            apellidos_libres.add(
-                apellido
+            alumnos_libres.add(
+                clave
             )
 
     # ----------------------------------------------------
@@ -2096,15 +3028,15 @@ def marcar_alumnos_excedidos_en_faltas(ws):
         if alumno == "":
             continue
 
-        apellido = normalizar_texto(
-            obtener_apellido(alumno)
+        clave = obtener_clave_alumno(
+            alumno
         )
 
         # =================================================
         # ALUMNO LIBRE
         # =================================================
 
-        if apellido in apellidos_libres:
+        if clave in alumnos_libres:
 
             ws.cell(
                 fila,
@@ -2131,6 +3063,7 @@ def marcar_alumnos_excedidos_en_faltas(ws):
         # =================================================
 
         # Primero dejamos toda la fila blanca/negra.
+
         for columna in range(
             1,
             11
@@ -2198,7 +3131,6 @@ def marcar_alumnos_excedidos_en_faltas(ws):
             ).value = None
 
     return True
-
 
 def preparar_lib(ws):
     """
@@ -2306,10 +3238,12 @@ def preparar_lib(ws):
 
 def generar_archivo_final():
     """
-    Genera el archivo final completo.
+    Genera el archivo final completo a partir de una copia
+    del archivo de inasistencias.
     """
 
     global archivo_salida
+    global diferencias_1et
 
     actualizar_progreso(
         "Generando archivo final...",
@@ -2318,6 +3252,10 @@ def generar_archivo_final():
 
     try:
 
+        # ----------------------------------------------------
+        # Crear copia del archivo de inasistencias
+        # ----------------------------------------------------
+
         archivo_salida = crear_archivo_salida()
 
         wb = load_workbook(
@@ -2325,19 +3263,31 @@ def generar_archivo_final():
         )
 
         # ----------------------------------------------------
-        # Eliminar hojas que no necesitamos
+        # REPORTE1 -> REPORTE
         # ----------------------------------------------------
 
-        eliminar_hojas_no_necesarias(wb)
+        if "REPORTE1" in wb.sheetnames:
 
+            if "REPORTE" in wb.sheetnames:
+
+                del wb["REPORTE"]
+
+            wb["REPORTE1"].title = "REPORTE"
 
         # ----------------------------------------------------
-        # Verificar hojas necesarias
+        # Control 1ET
+        # ----------------------------------------------------
+        
+        validar_diferencias_1et(
+            wb
+        )
+
+        # ----------------------------------------------------
+        # Verificar hojas originales
         # ----------------------------------------------------
 
         hojas_necesarias = [
             "REPORTE",
-            "LIB",
             "INAS",
             "INAS2"
         ]
@@ -2357,10 +3307,33 @@ def generar_archivo_final():
                 return False
 
         # ----------------------------------------------------
+        # Eliminar LIB y REG 2ET originales
+        # ----------------------------------------------------
+
+        if "LIB" in wb.sheetnames:
+            del wb["LIB"]
+
+        if "REG 2ET" in wb.sheetnames:
+            del wb["REG 2ET"]
+
+        # ----------------------------------------------------
         # REPORTE
         # ----------------------------------------------------
 
         ws_reporte = wb["REPORTE"]
+
+        # ----------------------------------------------------
+        # Eliminar columna F
+        # ----------------------------------------------------
+
+        ws_reporte.delete_cols(
+            6,
+            1
+        )
+
+        # ----------------------------------------------------
+        # Escribir notas
+        # ----------------------------------------------------
 
         if not escribir_notas_reporte(
             ws_reporte
@@ -2368,11 +3341,19 @@ def generar_archivo_final():
             wb.close()
             return False
 
+        # ----------------------------------------------------
+        # Escribir inasistencias de segunda etapa
+        # ----------------------------------------------------
+
         if not escribir_inasistencias_reporte(
             ws_reporte
         ):
             wb.close()
             return False
+
+        # ----------------------------------------------------
+        # Marcar alumnos regulares excedidos
+        # ----------------------------------------------------
 
         if not marcar_alumnos_excedidos_en_faltas(
             ws_reporte
@@ -2381,13 +3362,25 @@ def generar_archivo_final():
             return False
 
         # ----------------------------------------------------
-        # LIB
+        # Crear nueva hoja LIB
         # ----------------------------------------------------
 
-        ws_lib = wb["LIB"]
+        ws_lib = wb.create_sheet(
+            "LIB"
+        )
 
         if not preparar_lib(
             ws_lib
+        ):
+            wb.close()
+            return False
+
+        # ----------------------------------------------------
+        # Trasladar color de libres a REPORTE
+        # ----------------------------------------------------
+
+        if not marcar_libres_en_reporte(
+            ws_reporte
         ):
             wb.close()
             return False
@@ -2458,13 +3451,33 @@ if __name__ == "__main__":
         sys.exit()
 
     actualizar_progreso(
-        "Proceso finalizado correctamente.",
+        "Proceso terminado correctamente.",
         100
     )
 
-    cerrar_ventana_progreso()
+    # ----------------------------------------------------
+    # MENSAJE DE ARCHIVO GENERADO
+    # ----------------------------------------------------
 
-    messagebox.showinfo(
-        TITULO,
-        "El archivo fue generado correctamente."
-    )
+    if diferencias_1et:
+
+        messagebox.showwarning(
+            TITULO,
+            "Archivo generado exitosamente.\n\n"
+            "ATENCIÓN: SE DETECTARON DIFERENCIAS "
+            "EN 1ET.\n\n"
+            "Consulte la hoja '1ET' del archivo generado."
+        )
+
+    else:
+
+        messagebox.showinfo(
+            TITULO,
+            "Archivo generado exitosamente."
+        )
+
+    # ----------------------------------------------------
+    # ALERTA DE APELLIDOS REPETIDOS
+    # ----------------------------------------------------
+
+    mostrar_alerta_apellidos_repetidos()
