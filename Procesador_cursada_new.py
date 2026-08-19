@@ -580,19 +580,17 @@ print("=" * 55)
 # SELECCIÓN DE ARCHIVOS
 # ============================================================
 
-def seleccionar_archivo(titulo):
+def seleccionar_archivo(titulo, tipos_archivo):
     """
-    Abre una ventana para seleccionar un archivo Excel u ODS.
-    Devuelve la ruta completa o None si el usuario cancela.
+    Abre una ventana para seleccionar un archivo.
+
+    tipos_archivo:
+        Lista de tuplas con la descripción y extensión.
     """
 
     ruta = filedialog.askopenfilename(
         title=titulo,
-        filetypes=[
-            ("Archivos Excel y ODS", "*.xlsx *.ods"),
-            ("Excel", "*.xlsx"),
-            ("OpenDocument", "*.ods")
-        ]
+        filetypes=tipos_archivo
     )
 
     if not ruta:
@@ -600,13 +598,16 @@ def seleccionar_archivo(titulo):
 
     return ruta
 
-
 # ------------------------------------------------------------
 
 def seleccionar_archivos():
 
     global archivo_notas
     global archivo_inasistencias
+
+    # ----------------------------------------------------
+    # ARCHIVO DE NOTAS
+    # ----------------------------------------------------
 
     actualizar_progreso(
         "Seleccionando archivo de notas...",
@@ -617,12 +618,25 @@ def seleccionar_archivos():
     root.withdraw()
 
     archivo_notas = seleccionar_archivo(
-        "Seleccione el archivo de NOTAS"
+        "Seleccione el archivo de NOTAS",
+        [
+            ("Archivos Excel y ODS", "*.xlsx *.ods"),
+            ("Excel", "*.xlsx"),
+            ("OpenDocument", "*.ods")
+        ]
     )
 
     if archivo_notas is None:
-        mostrar_advertencia("Operación cancelada.")
+
+        mostrar_advertencia(
+            "Operación cancelada."
+        )
+
         return False
+
+    # ----------------------------------------------------
+    # ARCHIVO DE INASISTENCIAS
+    # ----------------------------------------------------
 
     actualizar_progreso(
         "Seleccionando archivo de inasistencias...",
@@ -630,14 +644,23 @@ def seleccionar_archivos():
     )
 
     archivo_inasistencias = seleccionar_archivo(
-        "Seleccione el archivo de INASISTENCIAS"
+        "Seleccione el archivo de INASISTENCIAS",
+        [
+            ("Archivo Excel", "*.xlsx")
+        ]
     )
 
     if archivo_inasistencias is None:
-        mostrar_advertencia("Operación cancelada.")
+
+        mostrar_advertencia(
+            "Operación cancelada."
+        )
+
         return False
 
-    mostrar_info("Archivos seleccionados correctamente.")
+    mostrar_info(
+        "Archivos seleccionados correctamente."
+    )
 
     actualizar_progreso(
         "Archivos seleccionados.",
@@ -1349,7 +1372,8 @@ def calcular_inasistencias_segunda_etapa():
     Calcula las inasistencias correspondientes
     únicamente a la segunda etapa.
 
-    INAS segunda etapa = INAS2 - INAS primera etapa.
+    INAS segunda etapa =
+        INAS2 acumuladas - INAS acumuladas.
 
     El alumno se identifica mediante su nombre completo
     normalizado.
@@ -1367,7 +1391,39 @@ def calcular_inasistencias_segunda_etapa():
         55
     )
 
+    # ----------------------------------------------------
+    # Verificar que existan las columnas necesarias
+    # ----------------------------------------------------
+
+    columna_inas = "Inasistencias acumuladas"
+
+    if columna_inas not in df_inas.columns:
+
+        mostrar_error(
+            "La hoja INAS no contiene la columna "
+            "'Inasistencias acumuladas'."
+        )
+
+        return False
+
+    if columna_inas not in df_inas2.columns:
+
+        mostrar_error(
+            "La hoja INAS2 no contiene la columna "
+            "'Inasistencias acumuladas'."
+        )
+
+        return False
+
+    # ----------------------------------------------------
+    # Inicializar diccionario
+    # ----------------------------------------------------
+
     inas_segunda_etapa = {}
+
+    # ----------------------------------------------------
+    # Obtener alumnos de cada hoja
+    # ----------------------------------------------------
 
     alumnos_reporte = obtener_lista_alumnos(
         df_reporte
@@ -1381,64 +1437,64 @@ def calcular_inasistencias_segunda_etapa():
         df_inas2
     )
 
-    # ------------------------------------------------
-    # RECORRER TODOS LOS ALUMNOS DEL REPORTE
-    # ------------------------------------------------
+    # ----------------------------------------------------
+    # Recorrer todos los alumnos del REPORTE
+    # ----------------------------------------------------
 
     for clave in alumnos_reporte.keys():
 
         valor_inas = 0
         valor_inas2 = 0
 
-        # ------------------------------------------------
+        # =================================================
         # INAS PRIMERA ETAPA
-        # ------------------------------------------------
+        # =================================================
 
         if clave in alumnos_inas:
 
-            datos = alumnos_inas[clave]
+            fila_inas = alumnos_inas[clave]["fila"]
 
-            fila = datos.get("fila")
+            valor = df_inas.loc[
+                fila_inas,
+                columna_inas
+            ]
 
-            try:
+            if pd.notna(valor):
 
-                valor = df_inas.loc[
-                    fila,
-                    "INAS"
-                ]
+                try:
 
-                if pd.notna(valor):
                     valor_inas = float(valor)
 
-            except Exception:
-                valor_inas = 0
+                except (ValueError, TypeError):
 
-        # ------------------------------------------------
-        # INAS ACUMULADAS / INAS2
-        # ------------------------------------------------
+                    valor_inas = 0
+
+        # =================================================
+        # INAS2 ACUMULADAS
+        # =================================================
 
         if clave in alumnos_inas2:
 
-            datos = alumnos_inas2[clave]
+            fila_inas2 = alumnos_inas2[clave]["fila"]
 
-            fila = datos.get("fila")
+            valor = df_inas2.loc[
+                fila_inas2,
+                columna_inas
+            ]
 
-            try:
+            if pd.notna(valor):
 
-                valor = df_inas2.loc[
-                    fila,
-                    "INAS2"
-                ]
+                try:
 
-                if pd.notna(valor):
                     valor_inas2 = float(valor)
 
-            except Exception:
-                valor_inas2 = 0
+                except (ValueError, TypeError):
 
-        # ------------------------------------------------
-        # CALCULAR SEGUNDA ETAPA
-        # ------------------------------------------------
+                    valor_inas2 = 0
+
+        # =================================================
+        # CALCULAR DIFERENCIA
+        # =================================================
 
         resultado = (
             valor_inas2
@@ -1446,8 +1502,17 @@ def calcular_inasistencias_segunda_etapa():
             valor_inas
         )
 
+        # -------------------------------------------------
+        # Evitar valores negativos
+        # -------------------------------------------------
+
         if resultado < 0:
+
             resultado = 0
+
+        # -------------------------------------------------
+        # Guardar resultado
+        # -------------------------------------------------
 
         inas_segunda_etapa[clave] = resultado
 
