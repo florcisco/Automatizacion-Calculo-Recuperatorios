@@ -1,9 +1,15 @@
 import os
 import re
 import copy
+import queue
+import threading
 import tkinter as tk
 
-from tkinter import filedialog, messagebox, simpledialog
+from tkinter import (
+    filedialog,
+    messagebox,
+    simpledialog
+)
 
 import openpyxl
 
@@ -15,13 +21,388 @@ from openpyxl.styles import (
 
 
 # ============================================================
+# CONFIGURACIÓN
+# ============================================================
+
+ETAPAS = [
+    "Elegir archivos",
+    "Validar archivos",
+    "Validar contenido",
+    "Calcular",
+    "Comparar",
+    "Creando reporte"
+]
+
+
+# ============================================================
+# VENTANA DE PROGRESO
+# ============================================================
+
+class VentanaProgreso:
+
+    def __init__(self, root):
+
+        self.root = root
+
+        self.ventana = tk.Toplevel(
+            root
+        )
+
+        self.ventana.title(
+            "Procesando archivos"
+        )
+
+        self.ventana.geometry(
+            "560x430"
+        )
+
+        self.ventana.resizable(
+            False,
+            False
+        )
+
+        self.ventana.protocol(
+            "WM_DELETE_WINDOW",
+            self.intentar_cerrar
+        )
+
+        # ----------------------------------------------------
+        # TÍTULO
+        # ----------------------------------------------------
+
+        titulo = tk.Label(
+            self.ventana,
+            text="PROCESANDO ARCHIVOS",
+            font=("Arial", 16, "bold")
+        )
+
+        titulo.pack(
+            pady=(25, 20)
+        )
+
+
+        # ----------------------------------------------------
+        # ETAPAS
+        # ----------------------------------------------------
+
+        frame_etapas = tk.Frame(
+            self.ventana
+        )
+
+        frame_etapas.pack(
+            fill="x",
+            padx=45
+        )
+
+
+        self.indicadores = []
+        self.textos = []
+
+
+        for etapa in ETAPAS:
+
+            frame_etapa = tk.Frame(
+                frame_etapas
+            )
+
+            frame_etapa.pack(
+                fill="x",
+                pady=3
+            )
+
+
+            indicador = tk.Label(
+                frame_etapa,
+                text="○",
+                font=("Arial", 12),
+                width=3,
+                anchor="w"
+            )
+
+            indicador.pack(
+                side="left"
+            )
+
+
+            texto = tk.Label(
+                frame_etapa,
+                text=etapa,
+                font=("Arial", 11),
+                anchor="w"
+            )
+
+            texto.pack(
+                side="left"
+            )
+
+
+            self.indicadores.append(
+                indicador
+            )
+
+            self.textos.append(
+                texto
+            )
+
+
+        # ----------------------------------------------------
+        # BARRA DE PROGRESO
+        # ----------------------------------------------------
+
+        self.barra_fondo = tk.Frame(
+            self.ventana,
+            bg="#E6E6E6",
+            height=22
+        )
+
+        self.barra_fondo.pack(
+            fill="x",
+            padx=45,
+            pady=(30, 8)
+        )
+
+        self.barra_fondo.pack_propagate(
+            False
+        )
+
+
+        self.barra = tk.Frame(
+            self.barra_fondo,
+            bg="#4CAF50"
+        )
+
+        self.barra.place(
+            x=0,
+            y=0,
+            width=0,
+            relheight=1
+        )
+
+
+        # ----------------------------------------------------
+        # PORCENTAJE
+        # ----------------------------------------------------
+
+        self.porcentaje = tk.Label(
+            self.ventana,
+            text="0%",
+            font=("Arial", 11, "bold")
+        )
+
+        self.porcentaje.pack(
+            pady=(0, 10)
+        )
+
+
+        # ----------------------------------------------------
+        # ESTADO
+        # ----------------------------------------------------
+
+        self.estado = tk.Label(
+            self.ventana,
+            text="Esperando...",
+            font=("Arial", 10),
+            fg="#555555"
+        )
+
+        self.estado.pack(
+            pady=5
+        )
+
+
+        # ----------------------------------------------------
+        # CENTRAR
+        # ----------------------------------------------------
+
+        self.ventana.update_idletasks()
+
+        ancho = self.ventana.winfo_width()
+        alto = self.ventana.winfo_height()
+
+        pantalla_ancho = (
+            self.ventana.winfo_screenwidth()
+        )
+
+        pantalla_alto = (
+            self.ventana.winfo_screenheight()
+        )
+
+        x = (
+            pantalla_ancho - ancho
+        ) // 2
+
+        y = (
+            pantalla_alto - alto
+        ) // 2
+
+        self.ventana.geometry(
+            f"{ancho}x{alto}+{x}+{y}"
+        )
+
+
+    # ========================================================
+    # ACTUALIZAR PROGRESO
+    # ========================================================
+
+    def actualizar(
+        self,
+        etapa,
+        porcentaje,
+        mensaje
+    ):
+
+        # ----------------------------------------------------
+        # ETAPAS TERMINADAS
+        # ----------------------------------------------------
+
+        for i in range(
+            etapa
+        ):
+
+            self.indicadores[i].config(
+                text="✓",
+                fg="#228B22"
+            )
+
+            self.textos[i].config(
+                fg="#228B22",
+                font=("Arial", 11)
+            )
+
+
+        # ----------------------------------------------------
+        # ETAPA ACTUAL
+        # ----------------------------------------------------
+
+        if etapa < len(ETAPAS):
+
+            self.indicadores[
+                etapa
+            ].config(
+                text="●",
+                fg="#0066CC"
+            )
+
+            self.textos[
+                etapa
+            ].config(
+                fg="#0066CC",
+                font=("Arial", 11, "bold")
+            )
+
+
+        # ----------------------------------------------------
+        # ETAPAS PENDIENTES
+        # ----------------------------------------------------
+
+        for i in range(
+            etapa + 1,
+            len(ETAPAS)
+        ):
+
+            self.indicadores[i].config(
+                text="○",
+                fg="#777777"
+            )
+
+            self.textos[i].config(
+                fg="#777777",
+                font=("Arial", 11)
+            )
+
+
+        # ----------------------------------------------------
+        # BARRA
+        # ----------------------------------------------------
+
+        porcentaje = max(
+            0,
+            min(
+                100,
+                porcentaje
+            )
+        )
+
+
+        self.barra.place(
+            relx=0,
+            rely=0,
+            relwidth=porcentaje / 100,
+            relheight=1
+        )
+
+
+        self.porcentaje.config(
+            text=f"{int(porcentaje)}%"
+        )
+
+
+        self.estado.config(
+            text=mensaje,
+            fg="#555555"
+        )
+
+
+    # ========================================================
+    # FINALIZAR
+    # ========================================================
+
+    def finalizar(
+        self,
+        mensaje
+    ):
+
+        for i in range(
+            len(ETAPAS)
+        ):
+
+            self.indicadores[i].config(
+                text="✓",
+                fg="#228B22"
+            )
+
+            self.textos[i].config(
+                fg="#228B22",
+                font=("Arial", 11)
+            )
+
+
+        self.barra.place(
+            relwidth=1
+        )
+
+
+        self.porcentaje.config(
+            text="100%"
+        )
+
+
+        self.estado.config(
+            text=mensaje,
+            fg="#228B22",
+            font=("Arial", 10, "bold")
+        )
+
+
+    # ========================================================
+    # INTENTAR CERRAR
+    # ========================================================
+
+    def intentar_cerrar(self):
+
+        messagebox.showwarning(
+            "Proceso en ejecución",
+            "El proceso todavía está en ejecución.\n\n"
+            "Esperá a que termine antes de cerrar.",
+            parent=self.ventana
+        )
+
+
+# ============================================================
 # FUNCIONES AUXILIARES
 # ============================================================
 
 def seleccionar_archivo(titulo):
-    """
-    Abre una ventana para seleccionar un archivo Excel.
-    """
 
     ruta = filedialog.askopenfilename(
         title=titulo,
@@ -35,24 +416,13 @@ def seleccionar_archivo(titulo):
 
 
 def extraer_dni(valor):
-    """
-    Extrae el DNI de un texto.
-
-    Puede encontrar:
-
-        DNI 12345678
-
-    o directamente:
-
-        12345678
-    """
 
     if valor is None:
         return None
 
     texto = str(valor)
 
-    # DNI escrito explícitamente
+
     match = re.search(
         r"\bDNI\s*(\d{7,9})\b",
         texto,
@@ -62,7 +432,7 @@ def extraer_dni(valor):
     if match:
         return match.group(1)
 
-    # Si directamente es un número
+
     match = re.fullmatch(
         r"\s*(\d{7,9})\s*",
         texto
@@ -71,78 +441,90 @@ def extraer_dni(valor):
     if match:
         return match.group(1)
 
+
     return None
 
 
 def convertir_nota(valor):
-    """
-    Convierte una nota a número.
-
-    Si aparece 'A', se considera 0.
-    """
 
     if valor is None or valor == "":
         return 0.0
 
-    if isinstance(valor, (int, float)):
+
+    if isinstance(
+        valor,
+        (int, float)
+    ):
+
         return float(valor)
 
-    texto = str(valor).strip().upper()
+
+    texto = str(
+        valor
+    ).strip().upper()
+
 
     if texto == "A":
         return 0.0
 
+
     try:
+
         return float(
-            texto.replace(",", ".")
+            texto.replace(
+                ",",
+                "."
+            )
         )
 
     except ValueError:
+
         return 0.0
 
 
-def promedio(nota1, nota2):
-    """
-    Calcula el promedio de dos notas.
-    """
+def promedio(
+    nota1,
+    nota2
+):
 
-    n1 = convertir_nota(nota1)
-    n2 = convertir_nota(nota2)
+    n1 = convertir_nota(
+        nota1
+    )
 
-    return (n1 + n2) / 2
+    n2 = convertir_nota(
+        nota2
+    )
+
+    return (
+        n1 + n2
+    ) / 2
 
 
 def convertir_inasistencia(valor):
-    """
-    Convierte una cantidad de inasistencias a número.
-    """
 
     if valor is None or valor == "":
         return 0.0
 
+
     try:
+
         return float(
-            str(valor).replace(",", ".")
+            str(valor).replace(
+                ",",
+                "."
+            )
         )
 
     except ValueError:
+
         return 0.0
 
 
 def numero_limpio(valor):
-    """
-    Si el número es entero, devuelve un int.
 
-    Si tiene decimal, devuelve float.
-
-    Ejemplos:
-
-        10.0 -> 10
-        8.0  -> 8
-        8.5  -> 8.5
-    """
-
-    valor = float(valor)
+    valor = float(
+        valor
+    )
 
     if valor.is_integer():
         return int(valor)
@@ -150,17 +532,92 @@ def numero_limpio(valor):
     return valor
 
 
+def detectar_fila_inicio_inasistencias(ws):
+    """
+    Detecta automáticamente si la hoja de inasistencias
+    tiene encabezado.
+
+    Si la primera fila contiene un encabezado,
+    comienza a leer desde la fila 2.
+
+    Si la primera fila ya contiene datos de un alumno,
+    comienza desde la fila 1.
+    """
+
+    valores = []
+
+    for columna in range(
+        1,
+        ws.max_column + 1
+    ):
+
+        valor = ws.cell(
+            1,
+            columna
+        ).value
+
+        if valor is not None:
+
+            valores.append(
+                str(valor).strip().upper()
+            )
+
+
+    # --------------------------------------------------------
+    # PALABRAS QUE INDICAN QUE LA FILA ES UN ENCABEZADO
+    # --------------------------------------------------------
+
+    encabezados = [
+        "LEGAJO",
+        "ALUMNO",
+        "INASISTENCIAS",
+        "INASISTENCIA",
+        "FALTAS",
+        "NOMBRE",
+        "APELLIDO"
+    ]
+
+
+    for valor in valores:
+
+        for encabezado in encabezados:
+
+            if encabezado in valor:
+
+                return 2
+
+
+    # --------------------------------------------------------
+    # SI NO HAY ENCABEZADO
+    # --------------------------------------------------------
+
+    return 1
+
+
 # ============================================================
 # PROCESAMIENTO PRINCIPAL
 # ============================================================
 
-def procesar(archivo_notas, archivo_inas, limite_inasistencias):
+def procesar(
+    archivo_notas,
+    archivo_inas,
+    limite_inasistencias,
+    cola
+):
 
-    print()
-    print("==========================================")
-    print("INICIANDO PROCESAMIENTO")
-    print("==========================================")
-    print()
+    # ========================================================
+    # ETAPA 2 - VALIDAR ARCHIVOS
+    # ========================================================
+
+    cola.put(
+        (
+            "progreso",
+            1,
+            15,
+            "Validando archivos..."
+        )
+    )
+
 
     # --------------------------------------------------------
     # ABRIR ARCHIVOS
@@ -169,6 +626,7 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
     wb_inas = openpyxl.load_workbook(
         archivo_inas
     )
+
 
     wb_notas = openpyxl.load_workbook(
         archivo_notas,
@@ -180,19 +638,61 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
     # OBTENER HOJAS
     # --------------------------------------------------------
 
-    ws_reporte = wb_inas["REPORTE1"]
-    ws_inas = wb_inas["INAS"]
-    ws_inas2 = wb_inas["INAS2"]
-    ws_notas = wb_notas["Reporte"]
+    ws_reporte = wb_inas[
+        "REPORTE"
+    ]
+
+    ws_inas = wb_inas[
+        "INAS"
+    ]
+
+    ws_inas2 = wb_inas[
+        "INAS2"
+    ]
+
+    ws_notas = wb_notas[
+        "Reporte"
+    ]
+
+
+    # ========================================================
+    # ETAPA 3 - VALIDAR CONTENIDO
+    # ========================================================
+
+    cola.put(
+        (
+            "progreso",
+            2,
+            30,
+            "Validando contenido..."
+        )
+    )
+
+
+    # Por ahora no agregamos nuevas
+    # validaciones.
+
+
+    # ========================================================
+    # ETAPA 4 - CALCULAR
+    # ========================================================
+
+    cola.put(
+        (
+            "progreso",
+            3,
+            35,
+            "Cargando notas..."
+        )
+    )
 
 
     # ========================================================
     # CARGAR NOTAS
     # ========================================================
 
-    print("Cargando notas...")
-
     notas = {}
+
 
     for fila in range(
         11,
@@ -206,22 +706,29 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
             ).value
         )
 
+
         if dni is None:
             continue
+
 
         tp3 = ws_notas.cell(
             fila,
             5
         ).value
 
+
         tp4 = ws_notas.cell(
             fila,
             6
         ).value
 
+
         notas[dni] = {
+
             "tp3": tp3,
+
             "tp4": tp4,
+
             "prm2": promedio(
                 tp3,
                 tp4
@@ -230,18 +737,19 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
 
 
     # ========================================================
-    # CARGAR INASISTENCIAS - PRIMERA ETAPA
+    # INASISTENCIAS - PRIMERA ETAPA
     # ========================================================
-
-    print(
-        "Cargando inasistencias "
-        "de la primera etapa..."
-    )
 
     inas1 = {}
 
+
+    fila_inicio_inas1 = detectar_fila_inicio_inasistencias(
+        ws_inas
+    )
+
+
     for fila in range(
-        2,
+        fila_inicio_inas1,
         ws_inas.max_row + 1
     ):
 
@@ -250,15 +758,21 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
             2
         ).value
 
+
         faltas = ws_inas.cell(
             fila,
             4
         ).value
 
+
         if legajo is None:
             continue
 
-        dni = str(legajo).strip()
+
+        dni = str(
+            legajo
+        ).strip()
+
 
         inas1[dni] = convertir_inasistencia(
             faltas
@@ -266,18 +780,19 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
 
 
     # ========================================================
-    # CARGAR INASISTENCIAS - SEGUNDA ETAPA
+    # INASISTENCIAS - SEGUNDA ETAPA
     # ========================================================
-
-    print(
-        "Cargando inasistencias "
-        "de la segunda etapa..."
-    )
 
     inas2 = {}
 
+
+    fila_inicio_inas2 = detectar_fila_inicio_inasistencias(
+        ws_inas2
+    )
+
+
     for fila in range(
-        2,
+        fila_inicio_inas2,
         ws_inas2.max_row + 1
     ):
 
@@ -286,15 +801,21 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
             2
         ).value
 
+
         faltas = ws_inas2.cell(
             fila,
             4
         ).value
 
+
         if legajo is None:
             continue
 
-        dni = str(legajo).strip()
+
+        dni = str(
+            legajo
+        ).strip()
+
 
         inas2[dni] = convertir_inasistencia(
             faltas
@@ -305,26 +826,21 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
     # ELIMINAR HOJAS ANTERIORES
     # ========================================================
 
-    print(
-        "Eliminando hojas LIB y REG 2ET..."
-    )
-
     for nombre in [
         "LIB",
         "REG 2ET"
     ]:
 
         if nombre in wb_inas.sheetnames:
-            del wb_inas[nombre]
+
+            del wb_inas[
+                nombre
+            ]
 
 
     # ========================================================
     # LIMPIAR DESDE COLUMNA E
     # ========================================================
-
-    print(
-        "Limpiando columnas desde E..."
-    )
 
     for fila in range(
         1,
@@ -362,16 +878,19 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
         fgColor="FFFFFF"
     )
 
+
     fondo_rojo = PatternFill(
         fill_type="solid",
         fgColor="FF0000"
     )
+
 
     fuente_negra = Font(
         name="Arial",
         size=10,
         color="000000"
     )
+
 
     fuente_roja = Font(
         name="Arial",
@@ -381,7 +900,7 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
 
 
     # ========================================================
-    # COPIAR ESTILO DE COLUMNA D A E-I
+    # COPIAR ESTILO D -> E-I
     # ========================================================
 
     for columna in range(
@@ -399,16 +918,19 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
                 4
             )
 
+
             destino = ws_reporte.cell(
                 fila,
                 columna
             )
+
 
             if origen.has_style:
 
                 destino._style = copy.copy(
                     origen._style
                 )
+
 
             if origen.alignment:
 
@@ -421,14 +943,16 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
     # PROCESAR ALUMNOS
     # ========================================================
 
-    print(
-        "Procesando alumnos..."
-    )
-
     alumnos_procesados = 0
     alumnos_sin_notas = 0
     alumnos_libres = 0
     alumnos_excedidos = 0
+
+
+    total_filas = max(
+        1,
+        ws_reporte.max_row - 10
+    )
 
 
     for fila in range(
@@ -436,8 +960,27 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
         ws_reporte.max_row + 1
     ):
 
+        porcentaje = (
+            35
+            + (
+                (fila - 10)
+                / total_filas
+            ) * 25
+        )
+
+
+        cola.put(
+            (
+                "progreso",
+                3,
+                porcentaje,
+                "Calculando resultados..."
+            )
+        )
+
+
         # ----------------------------------------------------
-        # OBTENER DNI
+        # DNI
         # ----------------------------------------------------
 
         dni = extraer_dni(
@@ -447,13 +990,13 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
             ).value
         )
 
+
         if dni is None:
             continue
 
 
         # ----------------------------------------------------
-        # PINTAR TODA LA FILA DEL ALUMNO
-        # DE BLANCO Y FUENTE NEGRA
+        # FILA BLANCA
         # ----------------------------------------------------
 
         for columna in range(
@@ -466,9 +1009,11 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
                 columna
             )
 
+
             celda.fill = copy.copy(
                 fondo_blanco
             )
+
 
             celda.font = copy.copy(
                 fuente_negra
@@ -485,19 +1030,17 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
                 notas[dni]["tp3"]
             )
 
+
             tp4 = convertir_nota(
                 notas[dni]["tp4"]
             )
+
 
             prm2 = promedio(
                 tp3,
                 tp4
             )
 
-
-            # -----------------------------------------------
-            # TP3
-            # -----------------------------------------------
 
             ws_reporte.cell(
                 fila,
@@ -507,10 +1050,6 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
             )
 
 
-            # -----------------------------------------------
-            # TP4
-            # -----------------------------------------------
-
             ws_reporte.cell(
                 fila,
                 6
@@ -519,13 +1058,10 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
             )
 
 
-            # -----------------------------------------------
-            # PRM2
-            # -----------------------------------------------
-
             prm2 = numero_limpio(
                 prm2
             )
+
 
             ws_reporte.cell(
                 fila,
@@ -539,28 +1075,30 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
             tp4 = None
             prm2 = None
 
+
             ws_reporte.cell(
                 fila,
                 5
             ).value = None
+
 
             ws_reporte.cell(
                 fila,
                 6
             ).value = None
 
+
             ws_reporte.cell(
                 fila,
                 7
             ).value = None
+
 
             alumnos_sin_notas += 1
 
 
         # ====================================================
         # INASISTENCIAS
-        #
-        # INAS = INAS2 - INAS
         # ====================================================
 
         faltas_1 = inas1.get(
@@ -568,16 +1106,23 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
             0
         )
 
+
         faltas_2 = inas2.get(
             dni,
             0
         )
 
-        diferencia = faltas_2 - faltas_1
+
+        diferencia = (
+            faltas_2
+            - faltas_1
+        )
+
 
         diferencia = numero_limpio(
             diferencia
         )
+
 
         ws_reporte.cell(
             fila,
@@ -596,17 +1141,14 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
 
 
         # ====================================================
-        # CASO 1:
-        #
-        # PRM2 MENOR A 4
-        #
-        # -> FONDO ROJO
-        # -> SE AGREGA A LIB
+        # ALUMNO LIBRE
         # ====================================================
 
-        if prm2 is not None and float(prm2) < 4:
+        if (
+            prm2 is not None
+            and float(prm2) < 4
+        ):
 
-            # Pintar toda la fila de rojo
             for columna in range(
                 1,
                 10
@@ -619,7 +1161,7 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
                     fondo_rojo
                 )
 
-                # Fuente negra
+
                 ws_reporte.cell(
                     fila,
                     columna
@@ -627,23 +1169,19 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
                     fuente_negra
                 )
 
+
             alumnos_libres += 1
 
 
         # ====================================================
-        # CASO 2:
-        #
-        # PRM2 MAYOR A 4
-        # Y SUPERA EL LIMITE DE INASISTENCIAS
-        #
-        # -> OBSERVACIÓN
-        # -> FUENTE ROJA
+        # REGULAR EXCEDIDO
         # ====================================================
 
         elif (
             prm2 is not None
             and float(prm2) >= 4
-            and float(diferencia) > limite_inasistencias
+            and float(diferencia)
+            > limite_inasistencias
         ):
 
             ws_reporte.cell(
@@ -654,7 +1192,6 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
             )
 
 
-            # Poner toda la fila con fuente roja
             for columna in range(
                 1,
                 10
@@ -667,11 +1204,12 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
                     fuente_roja
                 )
 
+
             alumnos_excedidos += 1
 
 
         # ====================================================
-        # FORMATO GENERAL
+        # FORMATO
         # ====================================================
 
         for columna in range(
@@ -689,7 +1227,21 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
 
 
     # ========================================================
-    # FORMATO GENERAL DE E-I
+    # ETAPA 5 - COMPARAR
+    # ========================================================
+
+    cola.put(
+        (
+            "progreso",
+            4,
+            65,
+            "Comparando resultados..."
+        )
+    )
+
+
+    # ========================================================
+    # FORMATO GENERAL
     # ========================================================
 
     for fila in range(
@@ -709,24 +1261,28 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
 
 
     # ========================================================
-    # ANCHO DE COLUMNAS
+    # ANCHOS
     # ========================================================
 
     ws_reporte.column_dimensions[
         "E"
     ].width = 12
 
+
     ws_reporte.column_dimensions[
         "F"
     ].width = 12
+
 
     ws_reporte.column_dimensions[
         "G"
     ].width = 12
 
+
     ws_reporte.column_dimensions[
         "H"
     ].width = 12
+
 
     ws_reporte.column_dimensions[
         "I"
@@ -734,23 +1290,30 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
 
 
     # ========================================================
-    # CREAR HOJA LIB
+    # ETAPA 6 - CREANDO REPORTE
     # ========================================================
 
-    print(
-        "Creando hoja LIB..."
+    cola.put(
+        (
+            "progreso",
+            5,
+            78,
+            "Creando reporte..."
+        )
     )
+
+
+    # ========================================================
+    # CREAR LIB
+    # ========================================================
 
     ws_lib = wb_inas.create_sheet(
         "LIB"
     )
 
 
-    # --------------------------------------------------------
-    # ENCABEZADO
-    # --------------------------------------------------------
-
     ws_lib["A1"] = "ALUMNOS LIBRES"
+
 
     ws_lib["A1"].font = Font(
         name="Arial",
@@ -759,16 +1322,14 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
         color="000000"
     )
 
+
     ws_lib["A1"].alignment = Alignment(
         horizontal="center"
     )
 
 
-    # --------------------------------------------------------
-    # ENCABEZADO DE COLUMNA
-    # --------------------------------------------------------
-
     ws_lib["A3"] = "ALUMNO"
+
 
     ws_lib["A3"].font = Font(
         name="Arial",
@@ -779,10 +1340,11 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
 
 
     # ========================================================
-    # COPIAR NOMBRES DE LOS ALUMNOS LIBRES
+    # NOMBRES LIBRES
     # ========================================================
 
     fila_lib = 4
+
 
     for fila in range(
         11,
@@ -796,16 +1358,20 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
             ).value
         )
 
+
         if dni is None:
             continue
 
+
         if dni not in notas:
             continue
+
 
         prm2 = promedio(
             notas[dni]["tp3"],
             notas[dni]["tp4"]
         )
+
 
         if prm2 < 4:
 
@@ -814,10 +1380,12 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
                 1
             ).value
 
+
             ws_lib.cell(
                 fila_lib,
                 1
             ).value = nombre
+
 
             ws_lib.cell(
                 fila_lib,
@@ -826,11 +1394,12 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
                 fuente_negra
             )
 
+
             fila_lib += 1
 
 
     # ========================================================
-    # FORMATO DE HOJA LIB
+    # FORMATO LIB
     # ========================================================
 
     ws_lib.column_dimensions[
@@ -838,21 +1407,44 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
     ].width = 45
 
 
+    for fila in range(
+        4,
+        fila_lib
+    ):
+
+        ws_lib.row_dimensions[
+            fila
+        ].height = 36
+
+
+        ws_lib.cell(
+            fila,
+            1
+        ).alignment = Alignment(
+            horizontal="left",
+            vertical="center",
+            wrap_text=True
+        )
+
+
     # ========================================================
-    # NOMBRE DEL ARCHIVO DE SALIDA
+    # ARCHIVO DE SALIDA
     # ========================================================
 
     carpeta = os.path.dirname(
         archivo_inas
     )
 
+
     nombre = os.path.basename(
         archivo_inas
     )
 
+
     nombre_base, extension = os.path.splitext(
         nombre
     )
+
 
     archivo_salida = os.path.join(
         carpeta,
@@ -864,9 +1456,15 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
     # GUARDAR
     # ========================================================
 
-    print(
-        "Guardando archivo..."
+    cola.put(
+        (
+            "progreso",
+            5,
+            92,
+            "Guardando archivo..."
+        )
     )
+
 
     wb_inas.save(
         archivo_salida
@@ -874,99 +1472,79 @@ def procesar(archivo_notas, archivo_inas, limite_inasistencias):
 
 
     # ========================================================
-    # RESULTADO
+    # TERMINADO
     # ========================================================
 
-    print()
-    print(
-        "=========================================="
-    )
-    print(
-        "PROCESO TERMINADO"
-    )
-    print(
-        "=========================================="
-    )
+    cola.put(
+        (
+            "terminado",
+            {
+                "alumnos_procesados":
+                    alumnos_procesados,
 
-    print(
-        f"Alumnos procesados: "
-        f"{alumnos_procesados}"
-    )
+                "alumnos_libres":
+                    alumnos_libres,
 
-    print(
-        f"Alumnos libres: "
-        f"{alumnos_libres}"
-    )
+                "alumnos_excedidos":
+                    alumnos_excedidos,
 
-    print(
-        f"Alumnos regulares excedidos "
-        f"en faltas: {alumnos_excedidos}"
-    )
+                "alumnos_sin_notas":
+                    alumnos_sin_notas,
 
-    print(
-        f"Alumnos sin notas encontradas: "
-        f"{alumnos_sin_notas}"
-    )
+                "limite":
+                    limite_inasistencias,
 
-    print()
-    print(
-        f"Límite de inasistencias: "
-        f"{limite_inasistencias}"
-    )
-
-    print()
-    print(
-        "Archivo generado:"
-    )
-
-    print(
-        archivo_salida
-    )
-
-
-    messagebox.showinfo(
-        "Proceso terminado",
-        "El archivo fue procesado correctamente.\n\n"
-
-        f"Alumnos procesados: "
-        f"{alumnos_procesados}\n"
-
-        f"Alumnos libres: "
-        f"{alumnos_libres}\n"
-
-        f"Regulares excedidos en faltas: "
-        f"{alumnos_excedidos}\n"
-
-        f"Alumnos sin notas: "
-        f"{alumnos_sin_notas}\n\n"
-
-        f"Límite de inasistencias: "
-        f"{limite_inasistencias}\n\n"
-
-        "Archivo generado:\n"
-        f"{archivo_salida}"
+                "archivo_salida":
+                    archivo_salida
+            }
+        )
     )
 
 
 # ============================================================
-# INTERFAZ
+# INTERFAZ PRINCIPAL
 # ============================================================
 
 def main():
 
-    # Crear ventana principal oculta
     root = tk.Tk()
+
     root.withdraw()
 
 
     # ========================================================
-    # PRIMERO: ARCHIVO DE NOTAS
+    # COLA DE COMUNICACIÓN
     # ========================================================
+
+    cola = queue.Queue()
+
+
+    # ========================================================
+    # VENTANA DE PROGRESO
+    # ========================================================
+
+    progreso = VentanaProgreso(
+        root
+    )
+
+
+    # ========================================================
+    # SELECCIÓN DE ARCHIVOS
+    # ========================================================
+
+    progreso.actualizar(
+        0,
+        0,
+        "Seleccioná el archivo de NOTAS..."
+    )
+
 
     messagebox.showinfo(
         "Paso 1 de 3",
-        "Primero seleccioná el archivo de NOTAS."
+        "Primero seleccioná el archivo de NOTAS.",
+        parent=progreso.ventana
     )
+
 
     archivo_notas = seleccionar_archivo(
         "Seleccionar archivo de NOTAS"
@@ -975,24 +1553,25 @@ def main():
 
     if not archivo_notas:
 
-        messagebox.showwarning(
-            "Cancelado",
-            "No se seleccionó el archivo de notas."
-        )
-
+        progreso.ventana.destroy()
         root.destroy()
 
         return
 
 
-    # ========================================================
-    # SEGUNDO: ARCHIVO DE INASISTENCIAS
-    # ========================================================
+    progreso.actualizar(
+        0,
+        5,
+        "Seleccioná el archivo de INASISTENCIAS..."
+    )
+
 
     messagebox.showinfo(
         "Paso 2 de 3",
-        "Ahora seleccioná el archivo de INASISTENCIAS."
+        "Ahora seleccioná el archivo de INASISTENCIAS.",
+        parent=progreso.ventana
     )
+
 
     archivo_inas = seleccionar_archivo(
         "Seleccionar archivo de INASISTENCIAS"
@@ -1001,74 +1580,210 @@ def main():
 
     if not archivo_inas:
 
-        messagebox.showwarning(
-            "Cancelado",
-            "No se seleccionó el archivo de inasistencias."
-        )
-
+        progreso.ventana.destroy()
         root.destroy()
 
         return
 
 
-    # ========================================================
-    # TERCERO: LÍMITE DE INASISTENCIAS
-    # ========================================================
+    progreso.actualizar(
+        0,
+        10,
+        "Indicá el límite de inasistencias..."
+    )
+
 
     limite = simpledialog.askfloat(
         "Paso 3 de 3",
         "¿Cuál es el límite de inasistencias?",
-        parent=root,
+        parent=progreso.ventana,
         minvalue=0
     )
 
 
     if limite is None:
 
-        messagebox.showwarning(
-            "Cancelado",
-            "No se indicó un límite de inasistencias."
-        )
-
+        progreso.ventana.destroy()
         root.destroy()
 
         return
 
 
     # ========================================================
-    # PROCESAR
+    # ELEGIR ARCHIVOS TERMINADO
     # ========================================================
 
-    try:
+    progreso.actualizar(
+        0,
+        15,
+        "Archivos seleccionados. Iniciando procesamiento..."
+    )
 
-        procesar(
-            archivo_notas,
-            archivo_inas,
-            limite
+
+    # ========================================================
+    # PROCESAMIENTO EN SEGUNDO PLANO
+    # ========================================================
+
+    def ejecutar():
+
+        try:
+
+            procesar(
+                archivo_notas,
+                archivo_inas,
+                limite,
+                cola
+            )
+
+        except Exception as e:
+
+            cola.put(
+                (
+                    "error",
+                    type(e).__name__,
+                    str(e)
+                )
+            )
+
+
+    hilo = threading.Thread(
+        target=ejecutar,
+        daemon=True
+    )
+
+
+    hilo.start()
+
+
+    # ========================================================
+    # REVISAR COLA
+    # ========================================================
+
+    def revisar_cola():
+
+        try:
+
+            while True:
+
+                mensaje = cola.get_nowait()
+
+
+                # --------------------------------------------
+                # ACTUALIZAR PROGRESO
+                # --------------------------------------------
+
+                if mensaje[0] == "progreso":
+
+                    _, etapa, porcentaje, texto = mensaje
+
+
+                    progreso.actualizar(
+                        etapa,
+                        porcentaje,
+                        texto
+                    )
+
+
+                # --------------------------------------------
+                # TERMINADO
+                # --------------------------------------------
+
+                elif mensaje[0] == "terminado":
+
+                    resultado = mensaje[1]
+
+
+                    progreso.finalizar(
+                        "Proceso terminado correctamente."
+                    )
+
+
+                    messagebox.showinfo(
+                        "Proceso terminado",
+
+                        "El archivo fue procesado correctamente.\n\n"
+
+                        f"Alumnos procesados: "
+                        f"{resultado['alumnos_procesados']}\n"
+
+                        f"Alumnos libres: "
+                        f"{resultado['alumnos_libres']}\n"
+
+                        f"Regulares excedidos en faltas: "
+                        f"{resultado['alumnos_excedidos']}\n"
+
+                        f"Alumnos sin notas: "
+                        f"{resultado['alumnos_sin_notas']}\n\n"
+
+                        f"Límite de inasistencias: "
+                        f"{resultado['limite']}\n\n"
+
+                        "Archivo generado:\n"
+                        f"{resultado['archivo_salida']}",
+
+                        parent=progreso.ventana
+                    )
+
+
+                    progreso.ventana.destroy()
+                    root.destroy()
+
+                    return
+
+
+                # --------------------------------------------
+                # ERROR
+                # --------------------------------------------
+
+                elif mensaje[0] == "error":
+
+                    _, tipo, detalle = mensaje
+
+
+                    messagebox.showerror(
+                        "Error",
+
+                        "Ocurrió un error durante "
+                        "el procesamiento:\n\n"
+
+                        f"{tipo}: {detalle}",
+
+                        parent=progreso.ventana
+                    )
+
+
+                    progreso.ventana.destroy()
+                    root.destroy()
+
+                    return
+
+
+        except queue.Empty:
+
+            pass
+
+
+        root.after(
+            100,
+            revisar_cola
         )
 
-    except Exception as e:
 
-        messagebox.showerror(
-            "Error",
-            "Ocurrió un error durante "
-            "el procesamiento:\n\n"
+    # ========================================================
+    # INICIAR CONTROL DE COLA
+    # ========================================================
 
-            f"{type(e).__name__}: {e}"
-        )
-
-        print()
-        print(
-            "ERROR:"
-        )
-
-        print(
-            type(e).__name__,
-            e
-        )
+    root.after(
+        100,
+        revisar_cola
+    )
 
 
-    root.destroy()
+    # ========================================================
+    # LOOP PRINCIPAL
+    # ========================================================
+
+    root.mainloop()
 
 
 # ============================================================
