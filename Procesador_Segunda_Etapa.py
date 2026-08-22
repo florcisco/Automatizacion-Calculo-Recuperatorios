@@ -4,6 +4,7 @@ import copy
 import queue
 import threading
 import tkinter as tk
+import unicodedata
 
 from tkinter import (
     filedialog,
@@ -44,9 +45,7 @@ class VentanaProgreso:
 
         self.root = root
 
-        self.ventana = tk.Toplevel(
-            root
-        )
+        self.ventana = tk.Toplevel(root)
 
         self.ventana.title(
             "Procesando archivos"
@@ -66,10 +65,6 @@ class VentanaProgreso:
             self.intentar_cerrar
         )
 
-        # ----------------------------------------------------
-        # TÍTULO
-        # ----------------------------------------------------
-
         titulo = tk.Label(
             self.ventana,
             text="PROCESANDO ARCHIVOS",
@@ -80,11 +75,6 @@ class VentanaProgreso:
             pady=(25, 20)
         )
 
-
-        # ----------------------------------------------------
-        # ETAPAS
-        # ----------------------------------------------------
-
         frame_etapas = tk.Frame(
             self.ventana
         )
@@ -94,10 +84,8 @@ class VentanaProgreso:
             padx=45
         )
 
-
         self.indicadores = []
         self.textos = []
-
 
         for etapa in ETAPAS:
 
@@ -109,7 +97,6 @@ class VentanaProgreso:
                 fill="x",
                 pady=3
             )
-
 
             indicador = tk.Label(
                 frame_etapa,
@@ -123,7 +110,6 @@ class VentanaProgreso:
                 side="left"
             )
 
-
             texto = tk.Label(
                 frame_etapa,
                 text=etapa,
@@ -135,7 +121,6 @@ class VentanaProgreso:
                 side="left"
             )
 
-
             self.indicadores.append(
                 indicador
             )
@@ -143,11 +128,6 @@ class VentanaProgreso:
             self.textos.append(
                 texto
             )
-
-
-        # ----------------------------------------------------
-        # BARRA DE PROGRESO
-        # ----------------------------------------------------
 
         self.barra_fondo = tk.Frame(
             self.ventana,
@@ -165,7 +145,6 @@ class VentanaProgreso:
             False
         )
 
-
         self.barra = tk.Frame(
             self.barra_fondo,
             bg="#4CAF50"
@@ -178,11 +157,6 @@ class VentanaProgreso:
             relheight=1
         )
 
-
-        # ----------------------------------------------------
-        # PORCENTAJE
-        # ----------------------------------------------------
-
         self.porcentaje = tk.Label(
             self.ventana,
             text="0%",
@@ -192,11 +166,6 @@ class VentanaProgreso:
         self.porcentaje.pack(
             pady=(0, 10)
         )
-
-
-        # ----------------------------------------------------
-        # ESTADO
-        # ----------------------------------------------------
 
         self.estado = tk.Label(
             self.ventana,
@@ -208,11 +177,6 @@ class VentanaProgreso:
         self.estado.pack(
             pady=5
         )
-
-
-        # ----------------------------------------------------
-        # CENTRAR
-        # ----------------------------------------------------
 
         self.ventana.update_idletasks()
 
@@ -240,20 +204,12 @@ class VentanaProgreso:
         )
 
 
-    # ========================================================
-    # ACTUALIZAR PROGRESO
-    # ========================================================
-
     def actualizar(
         self,
         etapa,
         porcentaje,
         mensaje
     ):
-
-        # ----------------------------------------------------
-        # ETAPAS TERMINADAS
-        # ----------------------------------------------------
 
         for i in range(
             etapa
@@ -268,11 +224,6 @@ class VentanaProgreso:
                 fg="#228B22",
                 font=("Arial", 11)
             )
-
-
-        # ----------------------------------------------------
-        # ETAPA ACTUAL
-        # ----------------------------------------------------
 
         if etapa < len(ETAPAS):
 
@@ -290,11 +241,6 @@ class VentanaProgreso:
                 font=("Arial", 11, "bold")
             )
 
-
-        # ----------------------------------------------------
-        # ETAPAS PENDIENTES
-        # ----------------------------------------------------
-
         for i in range(
             etapa + 1,
             len(ETAPAS)
@@ -310,11 +256,6 @@ class VentanaProgreso:
                 font=("Arial", 11)
             )
 
-
-        # ----------------------------------------------------
-        # BARRA
-        # ----------------------------------------------------
-
         porcentaje = max(
             0,
             min(
@@ -323,7 +264,6 @@ class VentanaProgreso:
             )
         )
 
-
         self.barra.place(
             relx=0,
             rely=0,
@@ -331,21 +271,15 @@ class VentanaProgreso:
             relheight=1
         )
 
-
         self.porcentaje.config(
             text=f"{int(porcentaje)}%"
         )
-
 
         self.estado.config(
             text=mensaje,
             fg="#555555"
         )
 
-
-    # ========================================================
-    # FINALIZAR
-    # ========================================================
 
     def finalizar(
         self,
@@ -366,16 +300,13 @@ class VentanaProgreso:
                 font=("Arial", 11)
             )
 
-
         self.barra.place(
             relwidth=1
         )
 
-
         self.porcentaje.config(
             text="100%"
         )
-
 
         self.estado.config(
             text=mensaje,
@@ -383,10 +314,6 @@ class VentanaProgreso:
             font=("Arial", 10, "bold")
         )
 
-
-    # ========================================================
-    # INTENTAR CERRAR
-    # ========================================================
 
     def intentar_cerrar(self):
 
@@ -415,13 +342,16 @@ def seleccionar_archivo(titulo):
     return ruta
 
 
+# ============================================================
+# DNI
+# ============================================================
+
 def extraer_dni(valor):
 
     if valor is None:
         return None
 
     texto = str(valor)
-
 
     match = re.search(
         r"\bDNI\s*(\d{7,9})\b",
@@ -432,7 +362,6 @@ def extraer_dni(valor):
     if match:
         return match.group(1)
 
-
     match = re.fullmatch(
         r"\s*(\d{7,9})\s*",
         texto
@@ -441,15 +370,87 @@ def extraer_dni(valor):
     if match:
         return match.group(1)
 
-
     return None
 
+
+# ============================================================
+# NORMALIZACIÓN DE NOMBRES
+# ============================================================
+
+def normalizar_nombre(valor):
+
+    if valor is None:
+        return ""
+
+    texto = str(
+        valor
+    ).strip().upper()
+
+    # --------------------------------------------------------
+    # ELIMINAR DNI
+    # --------------------------------------------------------
+
+    texto = re.sub(
+        r"\bDNI\s*\d{7,9}\b",
+        " ",
+        texto,
+        flags=re.IGNORECASE
+    )
+
+    texto = re.sub(
+        r"\b\d{7,9}\b",
+        " ",
+        texto
+    )
+
+    # --------------------------------------------------------
+    # QUITAR TILDES
+    # --------------------------------------------------------
+
+    texto = unicodedata.normalize(
+        "NFD",
+        texto
+    )
+
+    texto = "".join(
+        caracter
+        for caracter in texto
+        if unicodedata.category(
+            caracter
+        ) != "Mn"
+    )
+
+    # --------------------------------------------------------
+    # REEMPLAZAR SIGNOS POR ESPACIOS
+    # --------------------------------------------------------
+
+    texto = re.sub(
+        r"[^A-Z0-9]+",
+        " ",
+        texto
+    )
+
+    # --------------------------------------------------------
+    # NORMALIZAR ESPACIOS
+    # --------------------------------------------------------
+
+    texto = re.sub(
+        r"\s+",
+        " ",
+        texto
+    ).strip()
+
+    return texto
+
+
+# ============================================================
+# NOTAS
+# ============================================================
 
 def convertir_nota(valor):
 
     if valor is None or valor == "":
         return 0.0
-
 
     if isinstance(
         valor,
@@ -458,15 +459,12 @@ def convertir_nota(valor):
 
         return float(valor)
 
-
     texto = str(
         valor
     ).strip().upper()
 
-
     if texto == "A":
         return 0.0
-
 
     try:
 
@@ -500,11 +498,99 @@ def promedio(
     ) / 2
 
 
+# ============================================================
+# VALIDAR NOTA
+# ============================================================
+
+def validar_nota(valor):
+
+    """
+    Valida una nota individual.
+
+    Permitidos:
+
+        - vacío
+        - A
+        - entero entre 0 y 10
+
+    No permitidos:
+
+        - decimales
+        - letras distintas de A
+        - valores fuera de 0 a 10
+    """
+
+    if valor is None:
+        return None
+
+    if isinstance(
+        valor,
+        str
+    ):
+
+        texto = valor.strip().upper()
+
+        if texto == "":
+            return None
+
+        if texto == "A":
+            return "A"
+
+        if not re.fullmatch(
+            r"\d+",
+            texto
+        ):
+
+            return (
+                "formato inválido"
+            )
+
+        numero = int(
+            texto
+        )
+
+    elif isinstance(
+        valor,
+        (int, float)
+    ):
+
+        numero_float = float(
+            valor
+        )
+
+        if not numero_float.is_integer():
+
+            return (
+                "decimal"
+            )
+
+        numero = int(
+            numero_float
+        )
+
+    else:
+
+        return (
+            "formato inválido"
+        )
+
+    if numero < 0 or numero > 10:
+
+        return (
+            "fuera de rango"
+        )
+
+    return numero
+
+
+# ============================================================
+# INASISTENCIAS
+# ============================================================
+
 def convertir_inasistencia(valor):
 
     if valor is None or valor == "":
         return 0.0
-
 
     try:
 
@@ -533,16 +619,6 @@ def numero_limpio(valor):
 
 
 def detectar_fila_inicio_inasistencias(ws):
-    """
-    Detecta automáticamente si la hoja de inasistencias
-    tiene encabezado.
-
-    Si la primera fila contiene un encabezado,
-    comienza a leer desde la fila 2.
-
-    Si la primera fila ya contiene datos de un alumno,
-    comienza desde la fila 1.
-    """
 
     valores = []
 
@@ -562,11 +638,6 @@ def detectar_fila_inicio_inasistencias(ws):
                 str(valor).strip().upper()
             )
 
-
-    # --------------------------------------------------------
-    # PALABRAS QUE INDICAN QUE LA FILA ES UN ENCABEZADO
-    # --------------------------------------------------------
-
     encabezados = [
         "LEGAJO",
         "ALUMNO",
@@ -577,7 +648,6 @@ def detectar_fila_inicio_inasistencias(ws):
         "APELLIDO"
     ]
 
-
     for valor in valores:
 
         for encabezado in encabezados:
@@ -586,12 +656,1517 @@ def detectar_fila_inicio_inasistencias(ws):
 
                 return 2
 
-
-    # --------------------------------------------------------
-    # SI NO HAY ENCABEZADO
-    # --------------------------------------------------------
-
     return 1
+
+
+# ============================================================
+# BUSCAR COLUMNA PRM1
+# ============================================================
+
+def buscar_columna_prm1(ws):
+
+    """
+    Busca la columna cuyo encabezado sea PRM1.
+
+    Se revisan las primeras filas de la hoja.
+    """
+
+    for fila in range(
+        1,
+        min(
+            10,
+            ws.max_row
+        ) + 1
+    ):
+
+        for columna in range(
+            1,
+            ws.max_column + 1
+        ):
+
+            valor = ws.cell(
+                fila,
+                columna
+            ).value
+
+            if valor is None:
+                continue
+
+            texto = str(
+                valor
+            ).strip().upper()
+
+            texto = re.sub(
+                r"\s+",
+                "",
+                texto
+            )
+
+            if texto == "PRM1":
+
+                return columna
+
+    return None
+
+
+# ============================================================
+# PROPUESTA
+# ============================================================
+
+def contiene_propuesta(ws):
+
+    for fila in ws.iter_rows():
+
+        for celda in fila:
+
+            if celda.value is None:
+                continue
+
+            valor = str(
+                celda.value
+            ).strip().upper()
+
+            if valor == "PROPUESTA":
+
+                return True
+
+    return False
+
+
+# ============================================================
+# BUSCAR COLUMNA ALUMNO
+# ============================================================
+
+def buscar_columna_alumno(ws):
+
+    palabras = [
+        "ALUMNO",
+        "NOMBRE",
+        "APELLIDO"
+    ]
+
+    for fila in range(
+        1,
+        min(
+            10,
+            ws.max_row
+        ) + 1
+    ):
+
+        for columna in range(
+            1,
+            ws.max_column + 1
+        ):
+
+            valor = ws.cell(
+                fila,
+                columna
+            ).value
+
+            if valor is None:
+                continue
+
+            texto = str(
+                valor
+            ).strip().upper()
+
+            for palabra in palabras:
+
+                if palabra in texto:
+
+                    return columna
+
+    if ws.max_column >= 3:
+
+        return 3
+
+    return None
+
+
+# ============================================================
+# BUSCAR FILA DE ENCABEZADOS DEL REPORTE
+# ============================================================
+
+def detectar_fila_encabezado_reporte(ws):
+
+    """
+    Busca la fila donde se encuentran los encabezados
+    principales del Reporte del archivo de inasistencias.
+
+    Se busca especialmente ALUMNO y PRM1.
+    """
+
+    columna_prm1 = buscar_columna_prm1(
+        ws
+    )
+
+    if columna_prm1 is None:
+        return None
+
+    for fila in range(
+        1,
+        min(
+            10,
+            ws.max_row
+        ) + 1
+    ):
+
+        tiene_alumno = False
+        tiene_prm1 = False
+
+        for columna in range(
+            1,
+            ws.max_column + 1
+        ):
+
+            valor = ws.cell(
+                fila,
+                columna
+            ).value
+
+            if valor is None:
+                continue
+
+            texto = str(
+                valor
+            ).strip().upper()
+
+            texto = re.sub(
+                r"\s+",
+                "",
+                texto
+            )
+
+            if (
+                "ALUMNO" in texto
+                or "NOMBRE" in texto
+                or "APELLIDO" in texto
+            ):
+
+                tiene_alumno = True
+
+            if texto == "PRM1":
+
+                tiene_prm1 = True
+
+        if tiene_alumno and tiene_prm1:
+
+            return fila
+
+    return None
+
+
+# ============================================================
+# OBTENER REGISTROS DE NOTAS
+# ============================================================
+
+def obtener_registros_notas(ws):
+
+    registros = []
+    duplicados = set()
+
+    dni_vistos = {}
+
+    for fila in range(
+        11,
+        ws.max_row + 1
+    ):
+
+        valor_identidad = ws.cell(
+            fila,
+            1
+        ).value
+
+        if (
+            valor_identidad is None
+            or str(valor_identidad).strip() == ""
+        ):
+            continue
+
+        dni = extraer_dni(
+            valor_identidad
+        )
+
+        nombre = normalizar_nombre(
+            valor_identidad
+        )
+
+        if not nombre and dni is None:
+            continue
+
+        registro = {
+            "dni": dni,
+            "nombre": nombre,
+            "fila": fila
+        }
+
+        registros.append(
+            registro
+        )
+
+        if dni is not None:
+
+            if dni in dni_vistos:
+
+                duplicados.add(
+                    dni
+                )
+
+            else:
+
+                dni_vistos[dni] = fila
+
+    return registros, duplicados
+
+
+# ============================================================
+# OBTENER REGISTROS DE INASISTENCIAS
+# ============================================================
+
+def obtener_registros_inasistencias(ws):
+
+    """
+    Obtiene alumnos únicamente de la hoja INAS o INAS2.
+
+    IMPORTANTE:
+
+        Esta función NO busca PRM1.
+
+        PRM1 se obtiene exclusivamente desde la hoja
+        Reporte del archivo de inasistencias.
+    """
+
+    fila_inicio = detectar_fila_inicio_inasistencias(
+        ws
+    )
+
+    columna_alumno = buscar_columna_alumno(
+        ws
+    )
+
+    registros = []
+    duplicados = set()
+
+    dni_vistos = {}
+
+    for fila in range(
+        fila_inicio,
+        ws.max_row + 1
+    ):
+
+        legajo = ws.cell(
+            fila,
+            2
+        ).value
+
+        nombre = ""
+
+        if columna_alumno is not None:
+
+            valor_nombre = ws.cell(
+                fila,
+                columna_alumno
+            ).value
+
+            if valor_nombre is not None:
+
+                nombre = normalizar_nombre(
+                    valor_nombre
+                )
+
+        dni = None
+
+        if legajo is not None:
+
+            texto = str(
+                legajo
+            ).strip()
+
+            if texto != "":
+
+                dni = extraer_dni(
+                    texto
+                )
+
+                if dni is None:
+
+                    dni = texto
+
+        if dni is None and not nombre:
+            continue
+
+        registro = {
+            "dni": dni,
+            "nombre": nombre,
+            "fila": fila
+        }
+
+        registros.append(
+            registro
+        )
+
+        if dni is not None:
+
+            if dni in dni_vistos:
+
+                duplicados.add(
+                    dni
+                )
+
+            else:
+
+                dni_vistos[dni] = fila
+
+    return registros, duplicados
+
+
+# ============================================================
+# OBTENER PRM1 DESDE REPORTE DE INASISTENCIAS
+# ============================================================
+
+def obtener_registros_prm1_reporte(ws_reporte):
+
+    """
+    Obtiene los registros de PRM1 desde la hoja Reporte
+    del archivo de INASISTENCIAS.
+
+    El PRM1 se busca exclusivamente en esta hoja.
+
+    Cada registro contiene:
+
+        dni
+        nombre
+        prm1
+        fila
+    """
+
+    columna_prm1 = buscar_columna_prm1(
+        ws_reporte
+    )
+
+    if columna_prm1 is None:
+
+        raise ValueError(
+            "La hoja 'Reporte' del archivo de "
+            "INASISTENCIAS no contiene la columna 'PRM1'."
+        )
+
+    fila_encabezado = detectar_fila_encabezado_reporte(
+        ws_reporte
+    )
+
+    if fila_encabezado is None:
+
+        fila_encabezado = 10
+
+    columna_alumno = buscar_columna_alumno(
+        ws_reporte
+    )
+
+    registros = []
+
+    duplicados = set()
+
+    dni_vistos = {}
+
+    for fila in range(
+        fila_encabezado + 1,
+        ws_reporte.max_row + 1
+    ):
+
+        # ----------------------------------------------------
+        # IDENTIDAD
+        # ----------------------------------------------------
+
+        dni = None
+        nombre = ""
+
+        # ----------------------------------------------------
+        # PRIMERA OPCIÓN:
+        # columna 1
+        # ----------------------------------------------------
+
+        valor_identidad = ws_reporte.cell(
+            fila,
+            1
+        ).value
+
+        if valor_identidad is not None:
+
+            dni = extraer_dni(
+                valor_identidad
+            )
+
+            nombre = normalizar_nombre(
+                valor_identidad
+            )
+
+        # ----------------------------------------------------
+        # SEGUNDA OPCIÓN:
+        # columna de alumno
+        # ----------------------------------------------------
+
+        if columna_alumno is not None:
+
+            valor_nombre = ws_reporte.cell(
+                fila,
+                columna_alumno
+            ).value
+
+            if valor_nombre is not None:
+
+                nombre_desde_columna = normalizar_nombre(
+                    valor_nombre
+                )
+
+                if nombre_desde_columna:
+
+                    nombre = nombre_desde_columna
+
+                if dni is None:
+
+                    dni = extraer_dni(
+                        valor_nombre
+                    )
+
+        # ----------------------------------------------------
+        # LEGAJO / DNI EN COLUMNA 2
+        # ----------------------------------------------------
+
+        legajo = ws_reporte.cell(
+            fila,
+            2
+        ).value
+
+        if dni is None and legajo is not None:
+
+            texto_legajo = str(
+                legajo
+            ).strip()
+
+            if texto_legajo:
+
+                dni = extraer_dni(
+                    texto_legajo
+                )
+
+                if dni is None:
+
+                    dni = texto_legajo
+
+        # ----------------------------------------------------
+        # PRM1
+        # ----------------------------------------------------
+
+        prm1 = ws_reporte.cell(
+            fila,
+            columna_prm1
+        ).value
+
+        # ----------------------------------------------------
+        # IGNORAR FILAS SIN IDENTIDAD
+        # ----------------------------------------------------
+
+        if dni is None and not nombre:
+            continue
+
+        registro = {
+            "dni": dni,
+            "nombre": nombre,
+            "prm1": prm1,
+            "fila": fila
+        }
+
+        registros.append(
+            registro
+        )
+
+        if dni is not None:
+
+            if dni in dni_vistos:
+
+                duplicados.add(
+                    dni
+                )
+
+            else:
+
+                dni_vistos[dni] = fila
+
+    return registros, duplicados
+
+
+# ============================================================
+# ÍNDICE DE REGISTROS
+# ============================================================
+
+def crear_indice_dni(registros):
+
+    indice = {}
+
+    for registro in registros:
+
+        dni = registro["dni"]
+
+        if dni is None:
+            continue
+
+        indice.setdefault(
+            dni,
+            []
+        ).append(
+            registro
+        )
+
+    return indice
+
+
+def crear_indice_nombres(registros):
+
+    indice = {}
+
+    for registro in registros:
+
+        nombre = registro["nombre"]
+
+        if not nombre:
+            continue
+
+        indice.setdefault(
+            nombre,
+            []
+        ).append(
+            registro
+        )
+
+    return indice
+
+
+# ============================================================
+# COMPARAR REGISTROS
+# ============================================================
+
+def comparar_registros(
+    registros_origen,
+    registros_destino
+):
+
+    faltantes = []
+    coincidencias_por_nombre = []
+    ambiguos = []
+
+    indice_dni = crear_indice_dni(
+        registros_destino
+    )
+
+    indice_nombres = crear_indice_nombres(
+        registros_destino
+    )
+
+    for origen in registros_origen:
+
+        dni = origen["dni"]
+        nombre = origen["nombre"]
+
+        # ----------------------------------------------------
+        # CASO 1 - DNI COINCIDE
+        # ----------------------------------------------------
+
+        if (
+            dni is not None
+            and dni in indice_dni
+        ):
+
+            continue
+
+        # ----------------------------------------------------
+        # CASO 2 - BUSCAR POR NOMBRE
+        # ----------------------------------------------------
+
+        if nombre:
+
+            posibles = indice_nombres.get(
+                nombre,
+                []
+            )
+
+            if len(posibles) == 1:
+
+                destino = posibles[0]
+
+                coincidencias_por_nombre.append(
+                    (
+                        dni,
+                        destino["dni"],
+                        nombre
+                    )
+                )
+
+                continue
+
+            elif len(posibles) > 1:
+
+                dnis = sorted(
+                    [
+                        registro["dni"]
+                        for registro in posibles
+                        if registro["dni"] is not None
+                    ]
+                )
+
+                ambiguos.append(
+                    (
+                        dni,
+                        nombre,
+                        dnis
+                    )
+                )
+
+                continue
+
+        # ----------------------------------------------------
+        # CASO 3 - NO ENCONTRADO
+        # ----------------------------------------------------
+
+        faltantes.append(
+            (
+                dni,
+                nombre
+            )
+        )
+
+    return (
+        faltantes,
+        coincidencias_por_nombre,
+        ambiguos
+    )
+
+
+# ============================================================
+# FORMATEAR FALTANTES
+# ============================================================
+
+def formatear_faltantes(
+    faltantes
+):
+
+    resultado = []
+
+    for dni, nombre in faltantes:
+
+        if nombre:
+
+            if dni:
+
+                resultado.append(
+                    f"DNI {dni} - {nombre}"
+                )
+
+            else:
+
+                resultado.append(
+                    f"{nombre} - DNI faltante"
+                )
+
+        else:
+
+            if dni:
+
+                resultado.append(
+                    f"DNI {dni}"
+                )
+
+            else:
+
+                resultado.append(
+                    "Alumno sin DNI y sin nombre"
+                )
+
+    return "\n".join(
+        sorted(
+            resultado
+        )
+    )
+
+
+# ============================================================
+# VALIDAR NOTAS DE TP3 Y TP4
+# ============================================================
+
+def validar_notas_tp3_tp4(ws_notas):
+
+    errores = []
+
+    for fila in range(
+        11,
+        ws_notas.max_row + 1
+    ):
+
+        valor_identidad = ws_notas.cell(
+            fila,
+            1
+        ).value
+
+        if (
+            valor_identidad is None
+            or str(valor_identidad).strip() == ""
+        ):
+            continue
+
+        dni = extraer_dni(
+            valor_identidad
+        )
+
+        nombre = normalizar_nombre(
+            valor_identidad
+        )
+
+        tp3 = ws_notas.cell(
+            fila,
+            5
+        ).value
+
+        tp4 = ws_notas.cell(
+            fila,
+            6
+        ).value
+
+        resultado_tp3 = validar_nota(
+            tp3
+        )
+
+        resultado_tp4 = validar_nota(
+            tp4
+        )
+
+        # ----------------------------------------------------
+        # AMBAS VACÍAS
+        # ----------------------------------------------------
+
+        if (
+            resultado_tp3 is None
+            and resultado_tp4 is None
+        ):
+
+            identificacion = nombre
+
+            if dni:
+
+                identificacion += (
+                    f" - DNI {dni}"
+                )
+
+            errores.append(
+                "TP3 y TP4 vacíos: "
+                f"{identificacion}"
+            )
+
+            continue
+
+        # ----------------------------------------------------
+        # TP3
+        # ----------------------------------------------------
+
+        if isinstance(
+            resultado_tp3,
+            str
+        ) and resultado_tp3 != "A":
+
+            identificacion = nombre
+
+            if dni:
+
+                identificacion += (
+                    f" - DNI {dni}"
+                )
+
+            errores.append(
+                f"TP3 inválido ({tp3!r}) - "
+                f"{identificacion}"
+            )
+
+        # ----------------------------------------------------
+        # TP4
+        # ----------------------------------------------------
+
+        if isinstance(
+            resultado_tp4,
+            str
+        ) and resultado_tp4 != "A":
+
+            identificacion = nombre
+
+            if dni:
+
+                identificacion += (
+                    f" - DNI {dni}"
+                )
+
+            errores.append(
+                f"TP4 inválido ({tp4!r}) - "
+                f"{identificacion}"
+            )
+
+    return errores
+
+
+# ============================================================
+# VALIDAR PRM1 CONTRA TP3 / TP4
+# ============================================================
+
+def validar_prm1_menor_4(
+    ws_notas,
+    registros_prm1
+):
+
+    """
+    Valida PRM1 obtenido de la hoja Reporte del archivo
+    de INASISTENCIAS contra TP3 / TP4 del archivo de NOTAS.
+
+    Regla:
+
+        Si PRM1 < 4:
+
+            TP3 solamente puede ser A o vacío.
+            TP4 solamente puede ser A o vacío.
+
+    Identificación:
+
+        1. DNI
+        2. Nombre y apellido
+    """
+
+    errores = []
+
+    # --------------------------------------------------------
+    # ÍNDICES DE NOTAS
+    # --------------------------------------------------------
+
+    notas_por_dni, notas_por_nombre = crear_indice_notas(
+        ws_notas
+    )
+
+    # --------------------------------------------------------
+    # RECORRER PRM1
+    # --------------------------------------------------------
+
+    for registro_prm1 in registros_prm1:
+
+        prm1 = registro_prm1.get(
+            "prm1"
+        )
+
+        if prm1 is None:
+            continue
+
+        try:
+
+            prm1_numero = float(
+                str(prm1).replace(
+                    ",",
+                    "."
+                ).strip()
+            )
+
+        except (
+            ValueError,
+            TypeError
+        ):
+
+            continue
+
+        # ----------------------------------------------------
+        # SOLO INTERESA PRM1 < 4
+        # ----------------------------------------------------
+
+        if prm1_numero >= 4:
+            continue
+
+        dni = registro_prm1.get(
+            "dni"
+        )
+
+        nombre = registro_prm1.get(
+            "nombre"
+        )
+
+        # ----------------------------------------------------
+        # BUSCAR NOTAS
+        # ----------------------------------------------------
+
+        registro_notas = buscar_notas_alumno(
+            dni,
+            nombre,
+            notas_por_dni,
+            notas_por_nombre
+        )
+
+        if registro_notas is None:
+            continue
+
+        tp3 = registro_notas.get(
+            "tp3"
+        )
+
+        tp4 = registro_notas.get(
+            "tp4"
+        )
+
+        # ----------------------------------------------------
+        # IDENTIFICACIÓN
+        # ----------------------------------------------------
+
+        identificacion = nombre
+
+        if not identificacion:
+
+            identificacion = (
+                "Alumno sin nombre"
+            )
+
+        if dni:
+
+            identificacion += (
+                f" - DNI {dni}"
+            )
+
+        # ----------------------------------------------------
+        # TP3
+        # ----------------------------------------------------
+
+        if tp3 is not None:
+
+            texto_tp3 = str(
+                tp3
+            ).strip().upper()
+
+            if texto_tp3 != "":
+
+                if texto_tp3 != "A":
+
+                    errores.append(
+                        "PRM1 menor a 4 pero TP3 "
+                        "contiene una nota distinta de A: "
+                        f"TP3={tp3!r} - "
+                        f"PRM1={numero_limpio(prm1_numero)} - "
+                        f"{identificacion}"
+                    )
+
+        # ----------------------------------------------------
+        # TP4
+        # ----------------------------------------------------
+
+        if tp4 is not None:
+
+            texto_tp4 = str(
+                tp4
+            ).strip().upper()
+
+            if texto_tp4 != "":
+
+                if texto_tp4 != "A":
+
+                    errores.append(
+                        "PRM1 menor a 4 pero TP4 "
+                        "contiene una nota distinta de A: "
+                        f"TP4={tp4!r} - "
+                        f"PRM1={numero_limpio(prm1_numero)} - "
+                        f"{identificacion}"
+                    )
+
+    return errores
+
+
+# ============================================================
+# VALIDACIÓN DE CONTENIDO
+# ============================================================
+
+def validar_contenido(
+    ws_notas,
+    ws_reporte_inas,
+    ws_inas,
+    ws_inas2
+):
+
+    errores = []
+
+    # ========================================================
+    # VALIDAR TP3 Y TP4
+    # ========================================================
+
+    errores_notas = validar_notas_tp3_tp4(
+        ws_notas
+    )
+
+    if errores_notas:
+
+        errores.append(
+            "ERRORES EN TP3 / TP4:\n"
+            + "\n".join(
+                errores_notas
+            )
+        )
+
+    # ========================================================
+    # OBTENER REGISTROS
+    # ========================================================
+
+    registros_notas, duplicados_notas = (
+        obtener_registros_notas(
+            ws_notas
+        )
+    )
+
+    registros_prm1, duplicados_prm1 = (
+        obtener_registros_prm1_reporte(
+            ws_reporte_inas
+        )
+    )
+
+    registros_inas, duplicados_inas = (
+        obtener_registros_inasistencias(
+            ws_inas
+        )
+    )
+
+    registros_inas2, duplicados_inas2 = (
+        obtener_registros_inasistencias(
+            ws_inas2
+        )
+    )
+
+    # ========================================================
+    # VALIDAR PRM1 < 4 CONTRA TP3 / TP4
+    # ========================================================
+
+    errores_prm1 = validar_prm1_menor_4(
+        ws_notas,
+        registros_prm1
+    )
+
+    if errores_prm1:
+
+        errores.append(
+            "ERRORES DE PRM1 Y NOTAS:\n"
+            + "\n".join(
+                errores_prm1
+            )
+        )
+
+    # ========================================================
+    # DUPLICADOS
+    # ========================================================
+
+    if duplicados_notas:
+
+        errores.append(
+            "DNI duplicados en NOTAS:\n"
+            + "\n".join(
+                sorted(
+                    duplicados_notas
+                )
+            )
+        )
+
+    if duplicados_prm1:
+
+        errores.append(
+            "DNI duplicados en REPORTE "
+            "DEL ARCHIVO DE INASISTENCIAS:\n"
+            + "\n".join(
+                sorted(
+                    duplicados_prm1
+                )
+            )
+        )
+
+    if duplicados_inas:
+
+        errores.append(
+            "DNI duplicados en INAS:\n"
+            + "\n".join(
+                sorted(
+                    duplicados_inas
+                )
+            )
+        )
+
+    if duplicados_inas2:
+
+        errores.append(
+            "DNI duplicados en INAS2:\n"
+            + "\n".join(
+                sorted(
+                    duplicados_inas2
+                )
+            )
+        )
+
+    # ========================================================
+    # NOTAS VS INAS
+    # ========================================================
+
+    (
+        faltantes_notas_inas,
+        coincidencias_notas_inas,
+        ambiguos_notas_inas
+    ) = comparar_registros(
+        registros_notas,
+        registros_inas
+    )
+
+    # ========================================================
+    # NOTAS VS INAS2
+    # ========================================================
+
+    (
+        faltantes_notas_inas2,
+        coincidencias_notas_inas2,
+        ambiguos_notas_inas2
+    ) = comparar_registros(
+        registros_notas,
+        registros_inas2
+    )
+
+    # ========================================================
+    # INAS VS NOTAS
+    # ========================================================
+
+    (
+        faltantes_inas_notas,
+        coincidencias_inas_notas,
+        ambiguos_inas_notas
+    ) = comparar_registros(
+        registros_inas,
+        registros_notas
+    )
+
+    # ========================================================
+    # INAS2 VS NOTAS
+    # ========================================================
+
+    (
+        faltantes_inas2_notas,
+        coincidencias_inas2_notas,
+        ambiguos_inas2_notas
+    ) = comparar_registros(
+        registros_inas2,
+        registros_notas
+    )
+
+    # ========================================================
+    # INAS VS INAS2
+    # ========================================================
+
+    (
+        faltantes_inas_inas2,
+        coincidencias_inas_inas2,
+        ambiguos_inas_inas2
+    ) = comparar_registros(
+        registros_inas,
+        registros_inas2
+    )
+
+    # ========================================================
+    # INAS2 VS INAS
+    # ========================================================
+
+    (
+        faltantes_inas2_inas,
+        coincidencias_inas2_inas,
+        ambiguos_inas2_inas
+    ) = comparar_registros(
+        registros_inas2,
+        registros_inas
+    )
+
+    # ========================================================
+    # AMBIGÜEDADES
+    # ========================================================
+
+    if ambiguos_notas_inas:
+
+        texto = []
+
+        for dni, nombre, posibles in ambiguos_notas_inas:
+
+            identificacion = nombre
+
+            if dni:
+                identificacion += (
+                    f" - DNI {dni}"
+                )
+
+            texto.append(
+                f"{identificacion}\n"
+                f"Posibles DNI en INAS: "
+                f"{', '.join(posibles)}"
+            )
+
+        errores.append(
+            "ALUMNOS CON NOMBRE COINCIDENTE PERO "
+            "MÚLTIPLES DNI POSIBLES ENTRE NOTAS E INAS:\n"
+            + "\n\n".join(
+                texto
+            )
+        )
+
+    if ambiguos_notas_inas2:
+
+        texto = []
+
+        for dni, nombre, posibles in ambiguos_notas_inas2:
+
+            identificacion = nombre
+
+            if dni:
+                identificacion += (
+                    f" - DNI {dni}"
+                )
+
+            texto.append(
+                f"{identificacion}\n"
+                f"Posibles DNI en INAS2: "
+                f"{', '.join(posibles)}"
+            )
+
+        errores.append(
+            "ALUMNOS CON NOMBRE COINCIDENTE PERO "
+            "MÚLTIPLES DNI POSIBLES ENTRE NOTAS E INAS2:\n"
+            + "\n\n".join(
+                texto
+            )
+        )
+
+    if ambiguos_inas_notas:
+
+        texto = []
+
+        for dni, nombre, posibles in ambiguos_inas_notas:
+
+            identificacion = nombre
+
+            if dni:
+                identificacion += (
+                    f" - DNI {dni}"
+                )
+
+            texto.append(
+                f"{identificacion}\n"
+                f"Posibles DNI en NOTAS: "
+                f"{', '.join(posibles)}"
+            )
+
+        errores.append(
+            "ALUMNOS CON NOMBRE COINCIDENTE PERO "
+            "MÚLTIPLES DNI POSIBLES ENTRE INAS Y NOTAS:\n"
+            + "\n\n".join(
+                texto
+            )
+        )
+
+    if ambiguos_inas2_notas:
+
+        texto = []
+
+        for dni, nombre, posibles in ambiguos_inas2_notas:
+
+            identificacion = nombre
+
+            if dni:
+                identificacion += (
+                    f" - DNI {dni}"
+                )
+
+            texto.append(
+                f"{identificacion}\n"
+                f"Posibles DNI en NOTAS: "
+                f"{', '.join(posibles)}"
+            )
+
+        errores.append(
+            "ALUMNOS CON NOMBRE COINCIDENTE PERO "
+            "MÚLTIPLES DNI POSIBLES ENTRE INAS2 Y NOTAS:\n"
+            + "\n\n".join(
+                texto
+            )
+        )
+
+    # ========================================================
+    # FALTANTES
+    # ========================================================
+
+    if faltantes_notas_inas:
+
+        errores.append(
+            "ALUMNOS QUE ESTÁN EN NOTAS PERO "
+            "NO APARECEN EN INAS:\n"
+            + formatear_faltantes(
+                faltantes_notas_inas
+            )
+        )
+
+    if faltantes_notas_inas2:
+
+        errores.append(
+            "ALUMNOS QUE ESTÁN EN NOTAS PERO "
+            "NO APARECEN EN INAS2:\n"
+            + formatear_faltantes(
+                faltantes_notas_inas2
+            )
+        )
+
+    if faltantes_inas_notas:
+
+        errores.append(
+            "ALUMNOS QUE ESTÁN EN INAS PERO "
+            "NO APARECEN EN NOTAS:\n"
+            + formatear_faltantes(
+                faltantes_inas_notas
+            )
+        )
+
+    if faltantes_inas2_notas:
+
+        errores.append(
+            "ALUMNOS QUE ESTÁN EN INAS2 PERO "
+            "NO APARECEN EN NOTAS:\n"
+            + formatear_faltantes(
+                faltantes_inas2_notas
+            )
+        )
+
+    if faltantes_inas_inas2:
+
+        errores.append(
+            "ALUMNOS QUE ESTÁN EN INAS PERO "
+            "NO APARECEN EN INAS2:\n"
+            + formatear_faltantes(
+                faltantes_inas_inas2
+            )
+        )
+
+    if faltantes_inas2_inas:
+
+        errores.append(
+            "ALUMNOS QUE ESTÁN EN INAS2 PERO "
+            "NO APARECEN EN INAS:\n"
+            + formatear_faltantes(
+                faltantes_inas2_inas
+            )
+        )
+
+    return errores
+
+
+# ============================================================
+# CREAR ÍNDICE DE NOTAS
+# ============================================================
+
+def crear_indice_notas(ws_notas):
+
+    por_dni = {}
+    por_nombre = {}
+
+    for fila in range(
+        11,
+        ws_notas.max_row + 1
+    ):
+
+        valor_identidad = ws_notas.cell(
+            fila,
+            1
+        ).value
+
+        if (
+            valor_identidad is None
+            or str(valor_identidad).strip() == ""
+        ):
+            continue
+
+        dni = extraer_dni(
+            valor_identidad
+        )
+
+        nombre = normalizar_nombre(
+            valor_identidad
+        )
+
+        tp3 = ws_notas.cell(
+            fila,
+            5
+        ).value
+
+        tp4 = ws_notas.cell(
+            fila,
+            6
+        ).value
+
+        registro = {
+            "tp3": tp3,
+            "tp4": tp4,
+            "fila": fila,
+            "dni": dni,
+            "nombre": nombre
+        }
+
+        if dni is not None:
+
+            por_dni[dni] = registro
+
+        if nombre:
+
+            por_nombre.setdefault(
+                nombre,
+                []
+            ).append(
+                registro
+            )
+
+    return (
+        por_dni,
+        por_nombre
+    )
+
+
+# ============================================================
+# BUSCAR NOTAS DE UN ALUMNO
+# ============================================================
+
+def buscar_notas_alumno(
+    dni,
+    nombre,
+    notas_por_dni,
+    notas_por_nombre
+):
+
+    # --------------------------------------------------------
+    # PRIMERO DNI
+    # --------------------------------------------------------
+
+    if (
+        dni is not None
+        and dni in notas_por_dni
+    ):
+
+        return notas_por_dni[dni]
+
+    # --------------------------------------------------------
+    # DESPUÉS NOMBRE
+    # --------------------------------------------------------
+
+    if nombre:
+
+        posibles = notas_por_nombre.get(
+            nombre,
+            []
+        )
+
+        if len(posibles) == 1:
+
+            return posibles[0]
+
+    return None
 
 
 # ============================================================
@@ -618,7 +2193,6 @@ def procesar(
         )
     )
 
-
     # --------------------------------------------------------
     # ABRIR ARCHIVOS
     # --------------------------------------------------------
@@ -627,12 +2201,28 @@ def procesar(
         archivo_inas
     )
 
-
     wb_notas = openpyxl.load_workbook(
         archivo_notas,
         data_only=True
     )
 
+    # ========================================================
+    # VALIDACIÓN DE ARCHIVOS
+    # ========================================================
+
+    errores_archivos = validar_archivos(
+        wb_notas,
+        wb_inas
+    )
+
+    if errores_archivos:
+
+        raise ValueError(
+            "ARCHIVO INCORRECTO\n\n"
+            + "\n\n".join(
+                errores_archivos
+            )
+        )
 
     # --------------------------------------------------------
     # OBTENER HOJAS
@@ -654,7 +2244,6 @@ def procesar(
         "Reporte"
     ]
 
-
     # ========================================================
     # ETAPA 3 - VALIDAR CONTENIDO
     # ========================================================
@@ -668,10 +2257,23 @@ def procesar(
         )
     )
 
+    errores_contenido = validar_contenido(
+        ws_notas,
+        ws_reporte,
+        ws_inas,
+        ws_inas2
+    )
 
-    # Por ahora no agregamos nuevas
-    # validaciones.
+    if errores_contenido:
 
+        raise ValueError(
+            "ERROR DE CONTENIDO\n\n"
+            "Se encontraron diferencias o errores "
+            "en los archivos:\n\n"
+            + "\n\n".join(
+                errores_contenido
+            )
+        )
 
     # ========================================================
     # ETAPA 4 - CALCULAR
@@ -686,55 +2288,15 @@ def procesar(
         )
     )
 
-
     # ========================================================
-    # CARGAR NOTAS
+    # ÍNDICES DE NOTAS
     # ========================================================
 
-    notas = {}
-
-
-    for fila in range(
-        11,
-        ws_notas.max_row + 1
-    ):
-
-        dni = extraer_dni(
-            ws_notas.cell(
-                fila,
-                1
-            ).value
+    notas_por_dni, notas_por_nombre = (
+        crear_indice_notas(
+            ws_notas
         )
-
-
-        if dni is None:
-            continue
-
-
-        tp3 = ws_notas.cell(
-            fila,
-            5
-        ).value
-
-
-        tp4 = ws_notas.cell(
-            fila,
-            6
-        ).value
-
-
-        notas[dni] = {
-
-            "tp3": tp3,
-
-            "tp4": tp4,
-
-            "prm2": promedio(
-                tp3,
-                tp4
-            )
-        }
-
+    )
 
     # ========================================================
     # INASISTENCIAS - PRIMERA ETAPA
@@ -742,11 +2304,11 @@ def procesar(
 
     inas1 = {}
 
-
-    fila_inicio_inas1 = detectar_fila_inicio_inasistencias(
-        ws_inas
+    fila_inicio_inas1 = (
+        detectar_fila_inicio_inasistencias(
+            ws_inas
+        )
     )
-
 
     for fila in range(
         fila_inicio_inas1,
@@ -758,26 +2320,29 @@ def procesar(
             2
         ).value
 
-
         faltas = ws_inas.cell(
             fila,
             4
         ).value
 
-
         if legajo is None:
             continue
-
 
         dni = str(
             legajo
         ).strip()
 
+        dni_extraido = extraer_dni(
+            dni
+        )
+
+        if dni_extraido is not None:
+
+            dni = dni_extraido
 
         inas1[dni] = convertir_inasistencia(
             faltas
         )
-
 
     # ========================================================
     # INASISTENCIAS - SEGUNDA ETAPA
@@ -785,11 +2350,11 @@ def procesar(
 
     inas2 = {}
 
-
-    fila_inicio_inas2 = detectar_fila_inicio_inasistencias(
-        ws_inas2
+    fila_inicio_inas2 = (
+        detectar_fila_inicio_inasistencias(
+            ws_inas2
+        )
     )
-
 
     for fila in range(
         fila_inicio_inas2,
@@ -801,26 +2366,29 @@ def procesar(
             2
         ).value
 
-
         faltas = ws_inas2.cell(
             fila,
             4
         ).value
 
-
         if legajo is None:
             continue
-
 
         dni = str(
             legajo
         ).strip()
 
+        dni_extraido = extraer_dni(
+            dni
+        )
+
+        if dni_extraido is not None:
+
+            dni = dni_extraido
 
         inas2[dni] = convertir_inasistencia(
             faltas
         )
-
 
     # ========================================================
     # ELIMINAR HOJAS ANTERIORES
@@ -836,7 +2404,6 @@ def procesar(
             del wb_inas[
                 nombre
             ]
-
 
     # ========================================================
     # LIMPIAR DESDE COLUMNA E
@@ -857,7 +2424,6 @@ def procesar(
                 columna
             ).value = None
 
-
     # ========================================================
     # ENCABEZADOS
     # ========================================================
@@ -868,7 +2434,6 @@ def procesar(
     ws_reporte["H10"] = "INAS"
     ws_reporte["I10"] = "OBSERVACIONES"
 
-
     # ========================================================
     # COLORES
     # ========================================================
@@ -878,12 +2443,10 @@ def procesar(
         fgColor="FFFFFF"
     )
 
-
     fondo_rojo = PatternFill(
         fill_type="solid",
         fgColor="FF0000"
     )
-
 
     fuente_negra = Font(
         name="Arial",
@@ -891,13 +2454,11 @@ def procesar(
         color="000000"
     )
 
-
     fuente_roja = Font(
         name="Arial",
         size=10,
         color="FF0000"
     )
-
 
     # ========================================================
     # COPIAR ESTILO D -> E-I
@@ -918,12 +2479,10 @@ def procesar(
                 4
             )
 
-
             destino = ws_reporte.cell(
                 fila,
                 columna
             )
-
 
             if origen.has_style:
 
@@ -931,13 +2490,11 @@ def procesar(
                     origen._style
                 )
 
-
             if origen.alignment:
 
                 destino.alignment = copy.copy(
                     origen.alignment
                 )
-
 
     # ========================================================
     # PROCESAR ALUMNOS
@@ -948,12 +2505,10 @@ def procesar(
     alumnos_libres = 0
     alumnos_excedidos = 0
 
-
     total_filas = max(
         1,
         ws_reporte.max_row - 10
     )
-
 
     for fila in range(
         11,
@@ -968,7 +2523,6 @@ def procesar(
             ) * 25
         )
 
-
         cola.put(
             (
                 "progreso",
@@ -978,22 +2532,28 @@ def procesar(
             )
         )
 
-
         # ----------------------------------------------------
-        # DNI
+        # IDENTIDAD
         # ----------------------------------------------------
 
-        dni = extraer_dni(
-            ws_reporte.cell(
-                fila,
-                1
-            ).value
-        )
+        valor_identidad = ws_reporte.cell(
+            fila,
+            1
+        ).value
 
-
-        if dni is None:
+        if (
+            valor_identidad is None
+            or str(valor_identidad).strip() == ""
+        ):
             continue
 
+        dni = extraer_dni(
+            valor_identidad
+        )
+
+        nombre = normalizar_nombre(
+            valor_identidad
+        )
 
         # ----------------------------------------------------
         # FILA BLANCA
@@ -1009,38 +2569,43 @@ def procesar(
                 columna
             )
 
-
             celda.fill = copy.copy(
                 fondo_blanco
             )
-
 
             celda.font = copy.copy(
                 fuente_negra
             )
 
+        # ====================================================
+        # BUSCAR NOTAS
+        # ====================================================
+
+        registro_notas = buscar_notas_alumno(
+            dni,
+            nombre,
+            notas_por_dni,
+            notas_por_nombre
+        )
 
         # ====================================================
         # TP3 / TP4 / PRM2
         # ====================================================
 
-        if dni in notas:
+        if registro_notas is not None:
 
             tp3 = convertir_nota(
-                notas[dni]["tp3"]
+                registro_notas["tp3"]
             )
-
 
             tp4 = convertir_nota(
-                notas[dni]["tp4"]
+                registro_notas["tp4"]
             )
-
 
             prm2 = promedio(
                 tp3,
                 tp4
             )
-
 
             ws_reporte.cell(
                 fila,
@@ -1049,7 +2614,6 @@ def procesar(
                 tp3
             )
 
-
             ws_reporte.cell(
                 fila,
                 6
@@ -1057,17 +2621,14 @@ def procesar(
                 tp4
             )
 
-
             prm2 = numero_limpio(
                 prm2
             )
-
 
             ws_reporte.cell(
                 fila,
                 7
             ).value = prm2
-
 
         else:
 
@@ -1075,60 +2636,55 @@ def procesar(
             tp4 = None
             prm2 = None
 
-
             ws_reporte.cell(
                 fila,
                 5
             ).value = None
-
 
             ws_reporte.cell(
                 fila,
                 6
             ).value = None
 
-
             ws_reporte.cell(
                 fila,
                 7
             ).value = None
 
-
             alumnos_sin_notas += 1
-
 
         # ====================================================
         # INASISTENCIAS
         # ====================================================
 
-        faltas_1 = inas1.get(
-            dni,
-            0
-        )
+        faltas_1 = 0
+        faltas_2 = 0
 
+        if dni is not None:
 
-        faltas_2 = inas2.get(
-            dni,
-            0
-        )
+            faltas_1 = inas1.get(
+                dni,
+                0
+            )
 
+            faltas_2 = inas2.get(
+                dni,
+                0
+            )
 
         diferencia = (
             faltas_2
             - faltas_1
         )
 
-
         diferencia = numero_limpio(
             diferencia
         )
-
 
         ws_reporte.cell(
             fila,
             8
         ).value = diferencia
-
 
         # ====================================================
         # OBSERVACIONES
@@ -1138,7 +2694,6 @@ def procesar(
             fila,
             9
         ).value = None
-
 
         # ====================================================
         # ALUMNO LIBRE
@@ -1161,7 +2716,6 @@ def procesar(
                     fondo_rojo
                 )
 
-
                 ws_reporte.cell(
                     fila,
                     columna
@@ -1169,9 +2723,7 @@ def procesar(
                     fuente_negra
                 )
 
-
             alumnos_libres += 1
-
 
         # ====================================================
         # REGULAR EXCEDIDO
@@ -1191,7 +2743,6 @@ def procesar(
                 "ALUMNO REGULAR EXCEDIDO EN FALTAS"
             )
 
-
             for columna in range(
                 1,
                 10
@@ -1204,9 +2755,7 @@ def procesar(
                     fuente_roja
                 )
 
-
             alumnos_excedidos += 1
-
 
         # ====================================================
         # FORMATO
@@ -1222,9 +2771,7 @@ def procesar(
                 columna
             ).number_format = "General"
 
-
         alumnos_procesados += 1
-
 
     # ========================================================
     # ETAPA 5 - COMPARAR
@@ -1238,7 +2785,6 @@ def procesar(
             "Comparando resultados..."
         )
     )
-
 
     # ========================================================
     # FORMATO GENERAL
@@ -1259,7 +2805,6 @@ def procesar(
                 columna
             ).number_format = "General"
 
-
     # ========================================================
     # ANCHOS
     # ========================================================
@@ -1268,26 +2813,21 @@ def procesar(
         "E"
     ].width = 12
 
-
     ws_reporte.column_dimensions[
         "F"
     ].width = 12
-
 
     ws_reporte.column_dimensions[
         "G"
     ].width = 12
 
-
     ws_reporte.column_dimensions[
         "H"
     ].width = 12
 
-
     ws_reporte.column_dimensions[
         "I"
     ].width = 42
-
 
     # ========================================================
     # ETAPA 6 - CREANDO REPORTE
@@ -1302,7 +2842,6 @@ def procesar(
         )
     )
 
-
     # ========================================================
     # CREAR LIB
     # ========================================================
@@ -1311,9 +2850,7 @@ def procesar(
         "LIB"
     )
 
-
     ws_lib["A1"] = "ALUMNOS LIBRES"
-
 
     ws_lib["A1"].font = Font(
         name="Arial",
@@ -1322,14 +2859,11 @@ def procesar(
         color="000000"
     )
 
-
     ws_lib["A1"].alignment = Alignment(
         horizontal="center"
     )
 
-
     ws_lib["A3"] = "ALUMNO"
-
 
     ws_lib["A3"].font = Font(
         name="Arial",
@@ -1338,54 +2872,64 @@ def procesar(
         color="000000"
     )
 
-
     # ========================================================
     # NOMBRES LIBRES
     # ========================================================
 
     fila_lib = 4
 
-
     for fila in range(
         11,
         ws_reporte.max_row + 1
     ):
 
+        valor_identidad = ws_reporte.cell(
+            fila,
+            1
+        ).value
+
+        if (
+            valor_identidad is None
+            or str(valor_identidad).strip() == ""
+        ):
+            continue
+
         dni = extraer_dni(
-            ws_reporte.cell(
-                fila,
-                1
-            ).value
+            valor_identidad
         )
 
+        nombre = normalizar_nombre(
+            valor_identidad
+        )
 
-        if dni is None:
+        registro_notas = buscar_notas_alumno(
+            dni,
+            nombre,
+            notas_por_dni,
+            notas_por_nombre
+        )
+
+        if registro_notas is None:
             continue
-
-
-        if dni not in notas:
-            continue
-
 
         prm2 = promedio(
-            notas[dni]["tp3"],
-            notas[dni]["tp4"]
+            registro_notas["tp3"],
+            registro_notas["tp4"]
         )
-
 
         if prm2 < 4:
 
-            nombre = ws_reporte.cell(
-                fila,
-                1
-            ).value
-
+            nombre_original = (
+                ws_reporte.cell(
+                    fila,
+                    1
+                ).value
+            )
 
             ws_lib.cell(
                 fila_lib,
                 1
-            ).value = nombre
-
+            ).value = nombre_original
 
             ws_lib.cell(
                 fila_lib,
@@ -1394,9 +2938,29 @@ def procesar(
                 fuente_negra
             )
 
-
             fila_lib += 1
 
+    # ========================================================
+    # MENSAJE SI NO HAY ALUMNOS LIBRES
+    # ========================================================
+
+    if alumnos_libres == 0:
+
+        ws_lib["A4"] = (
+            "MATERIA SIN ALUMNOS LIBRES"
+        )
+
+        ws_lib["A4"].font = Font(
+            name="Arial",
+            size=10,
+            bold=True,
+            color="000000"
+        )
+
+        ws_lib["A4"].alignment = Alignment(
+            horizontal="left",
+            vertical="center"
+        )
 
     # ========================================================
     # FORMATO LIB
@@ -1406,26 +2970,25 @@ def procesar(
         "A"
     ].width = 45
 
+    if alumnos_libres > 0:
 
-    for fila in range(
-        4,
-        fila_lib
-    ):
+        for fila in range(
+            4,
+            fila_lib
+        ):
 
-        ws_lib.row_dimensions[
-            fila
-        ].height = 36
+            ws_lib.row_dimensions[
+                fila
+            ].height = 36
 
-
-        ws_lib.cell(
-            fila,
-            1
-        ).alignment = Alignment(
-            horizontal="left",
-            vertical="center",
-            wrap_text=True
-        )
-
+            ws_lib.cell(
+                fila,
+                1
+            ).alignment = Alignment(
+                horizontal="left",
+                vertical="center",
+                wrap_text=True
+            )
 
     # ========================================================
     # ARCHIVO DE SALIDA
@@ -1435,22 +2998,18 @@ def procesar(
         archivo_inas
     )
 
-
     nombre = os.path.basename(
         archivo_inas
     )
-
 
     nombre_base, extension = os.path.splitext(
         nombre
     )
 
-
     archivo_salida = os.path.join(
         carpeta,
         f"{nombre_base} procesado{extension}"
     )
-
 
     # ========================================================
     # GUARDAR
@@ -1465,11 +3024,9 @@ def procesar(
         )
     )
 
-
     wb_inas.save(
         archivo_salida
     )
-
 
     # ========================================================
     # TERMINADO
@@ -1502,6 +3059,91 @@ def procesar(
 
 
 # ============================================================
+# VALIDACIÓN DE ARCHIVOS
+# ============================================================
+
+def validar_archivos(
+    wb_notas,
+    wb_inas
+):
+
+    errores = []
+
+    # --------------------------------------------------------
+    # ARCHIVO DE NOTAS
+    # --------------------------------------------------------
+
+    if "Reporte" not in wb_notas.sheetnames:
+
+        errores.append(
+            "El archivo de NOTAS no contiene "
+            "la hoja 'Reporte'."
+        )
+
+    else:
+
+        ws_notas = wb_notas[
+            "Reporte"
+        ]
+
+        if not contiene_propuesta(
+            ws_notas
+        ):
+
+            errores.append(
+                "El archivo de NOTAS no contiene "
+                "la columna o encabezado 'PROPUESTA'."
+            )
+
+    # --------------------------------------------------------
+    # ARCHIVO DE INASISTENCIAS
+    # --------------------------------------------------------
+
+    if "INAS" not in wb_inas.sheetnames:
+
+        errores.append(
+            "El archivo de INASISTENCIAS no contiene "
+            "la hoja 'INAS'."
+        )
+
+    if "INAS2" not in wb_inas.sheetnames:
+
+        errores.append(
+            "El archivo de INASISTENCIAS no contiene "
+            "la hoja 'INAS2'."
+        )
+
+    # --------------------------------------------------------
+    # REPORTE DEL ARCHIVO DE INASISTENCIAS
+    # --------------------------------------------------------
+
+    if "REPORTE" not in wb_inas.sheetnames:
+
+        errores.append(
+            "El archivo de INASISTENCIAS no contiene "
+            "la hoja 'Reporte'."
+        )
+
+    else:
+
+        ws_reporte = wb_inas[
+            "REPORTE"
+        ]
+
+        if buscar_columna_prm1(
+            ws_reporte
+        ) is None:
+
+            errores.append(
+                "La hoja 'Reporte' del archivo de "
+                "INASISTENCIAS no contiene "
+                "la columna 'PRM1'."
+            )
+
+    return errores
+
+
+# ============================================================
 # INTERFAZ PRINCIPAL
 # ============================================================
 
@@ -1511,13 +3153,11 @@ def main():
 
     root.withdraw()
 
-
     # ========================================================
     # COLA DE COMUNICACIÓN
     # ========================================================
 
     cola = queue.Queue()
-
 
     # ========================================================
     # VENTANA DE PROGRESO
@@ -1526,7 +3166,6 @@ def main():
     progreso = VentanaProgreso(
         root
     )
-
 
     # ========================================================
     # SELECCIÓN DE ARCHIVOS
@@ -1538,18 +3177,15 @@ def main():
         "Seleccioná el archivo de NOTAS..."
     )
 
-
     messagebox.showinfo(
         "Paso 1 de 3",
         "Primero seleccioná el archivo de NOTAS.",
         parent=progreso.ventana
     )
 
-
     archivo_notas = seleccionar_archivo(
         "Seleccionar archivo de NOTAS"
     )
-
 
     if not archivo_notas:
 
@@ -1558,13 +3194,11 @@ def main():
 
         return
 
-
     progreso.actualizar(
         0,
         5,
         "Seleccioná el archivo de INASISTENCIAS..."
     )
-
 
     messagebox.showinfo(
         "Paso 2 de 3",
@@ -1572,11 +3206,9 @@ def main():
         parent=progreso.ventana
     )
 
-
     archivo_inas = seleccionar_archivo(
         "Seleccionar archivo de INASISTENCIAS"
     )
-
 
     if not archivo_inas:
 
@@ -1585,13 +3217,11 @@ def main():
 
         return
 
-
     progreso.actualizar(
         0,
         10,
         "Indicá el límite de inasistencias..."
     )
-
 
     limite = simpledialog.askfloat(
         "Paso 3 de 3",
@@ -1600,14 +3230,12 @@ def main():
         minvalue=0
     )
 
-
     if limite is None:
 
         progreso.ventana.destroy()
         root.destroy()
 
         return
-
 
     # ========================================================
     # ELEGIR ARCHIVOS TERMINADO
@@ -1618,7 +3246,6 @@ def main():
         15,
         "Archivos seleccionados. Iniciando procesamiento..."
     )
-
 
     # ========================================================
     # PROCESAMIENTO EN SEGUNDO PLANO
@@ -1645,15 +3272,12 @@ def main():
                 )
             )
 
-
     hilo = threading.Thread(
         target=ejecutar,
         daemon=True
     )
 
-
     hilo.start()
-
 
     # ========================================================
     # REVISAR COLA
@@ -1667,7 +3291,6 @@ def main():
 
                 mensaje = cola.get_nowait()
 
-
                 # --------------------------------------------
                 # ACTUALIZAR PROGRESO
                 # --------------------------------------------
@@ -1676,13 +3299,11 @@ def main():
 
                     _, etapa, porcentaje, texto = mensaje
 
-
                     progreso.actualizar(
                         etapa,
                         porcentaje,
                         texto
                     )
-
 
                 # --------------------------------------------
                 # TERMINADO
@@ -1692,11 +3313,9 @@ def main():
 
                     resultado = mensaje[1]
 
-
                     progreso.finalizar(
                         "Proceso terminado correctamente."
                     )
-
 
                     messagebox.showinfo(
                         "Proceso terminado",
@@ -1724,12 +3343,10 @@ def main():
                         parent=progreso.ventana
                     )
 
-
                     progreso.ventana.destroy()
                     root.destroy()
 
                     return
-
 
                 # --------------------------------------------
                 # ERROR
@@ -1738,7 +3355,6 @@ def main():
                 elif mensaje[0] == "error":
 
                     _, tipo, detalle = mensaje
-
 
                     messagebox.showerror(
                         "Error",
@@ -1751,23 +3367,19 @@ def main():
                         parent=progreso.ventana
                     )
 
-
                     progreso.ventana.destroy()
                     root.destroy()
 
                     return
 
-
         except queue.Empty:
 
             pass
-
 
         root.after(
             100,
             revisar_cola
         )
-
 
     # ========================================================
     # INICIAR CONTROL DE COLA
@@ -1777,7 +3389,6 @@ def main():
         100,
         revisar_cola
     )
-
 
     # ========================================================
     # LOOP PRINCIPAL
