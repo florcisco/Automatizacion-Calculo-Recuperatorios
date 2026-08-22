@@ -2168,6 +2168,328 @@ def buscar_notas_alumno(
 
     return None
 
+# ============================================================
+# COMPARAR TP1 Y TP2
+# ============================================================
+
+def comparar_tp1_tp2(
+    ws_inas_reporte,
+    ws_notas
+):
+
+    """
+    Compara TP1 y TP2 entre:
+
+        Archivo de INASISTENCIAS - hoja Reporte
+        Archivo de NOTAS - hoja Reporte
+
+    Columnas:
+
+        INASISTENCIAS:
+            B = TP1
+            C = TP2
+
+        NOTAS:
+            B = TP1
+            C = TP2
+
+    Identificación del alumno:
+
+        1. DNI
+        2. Nombre normalizado
+
+    Devuelve una lista de diferencias.
+    """
+
+    diferencias = []
+
+    # --------------------------------------------------------
+    # CREAR ÍNDICE DEL ARCHIVO DE NOTAS
+    # --------------------------------------------------------
+
+    registros_notas = {}
+
+    for fila in range(
+        11,
+        ws_notas.max_row + 1
+    ):
+
+        valor_identidad = ws_notas.cell(
+            fila,
+            1
+        ).value
+
+        if (
+            valor_identidad is None
+            or str(valor_identidad).strip() == ""
+        ):
+            continue
+
+        dni = extraer_dni(
+            valor_identidad
+        )
+
+        nombre = normalizar_nombre(
+            valor_identidad
+        )
+
+        registro = {
+            "dni": dni,
+            "nombre": nombre,
+            "tp1": ws_notas.cell(
+                fila,
+                2
+            ).value,
+            "tp2": ws_notas.cell(
+                fila,
+                3
+            ).value
+        }
+
+        # ----------------------------------------------------
+        # ÍNDICE POR DNI
+        # ----------------------------------------------------
+
+        if dni is not None:
+
+            registros_notas.setdefault(
+                ("DNI", dni),
+                []
+            ).append(
+                registro
+            )
+
+        # ----------------------------------------------------
+        # ÍNDICE POR NOMBRE
+        # ----------------------------------------------------
+
+        if nombre:
+
+            registros_notas.setdefault(
+                ("NOMBRE", nombre),
+                []
+            ).append(
+                registro
+            )
+
+    # --------------------------------------------------------
+    # RECORRER INASISTENCIAS
+    # --------------------------------------------------------
+
+    for fila in range(
+        11,
+        ws_inas_reporte.max_row + 1
+    ):
+
+        valor_identidad = ws_inas_reporte.cell(
+            fila,
+            1
+        ).value
+
+        if (
+            valor_identidad is None
+            or str(valor_identidad).strip() == ""
+        ):
+            continue
+
+        dni = extraer_dni(
+            valor_identidad
+        )
+
+        nombre = normalizar_nombre(
+            valor_identidad
+        )
+
+        # ----------------------------------------------------
+        # BUSCAR ALUMNO EN NOTAS
+        # ----------------------------------------------------
+
+        registro_notas = None
+
+        # Primero DNI
+        if dni is not None:
+
+            posibles = registros_notas.get(
+                ("DNI", dni),
+                []
+            )
+
+            if len(posibles) == 1:
+
+                registro_notas = posibles[0]
+
+        # Después nombre
+        if registro_notas is None and nombre:
+
+            posibles = registros_notas.get(
+                ("NOMBRE", nombre),
+                []
+            )
+
+            if len(posibles) == 1:
+
+                registro_notas = posibles[0]
+
+        # Si no se encuentra, la validación anterior
+        # ya debería haber detectado el problema.
+        if registro_notas is None:
+            continue
+
+        # ----------------------------------------------------
+        # IDENTIFICACIÓN
+        # ----------------------------------------------------
+
+        if nombre:
+
+            identificacion = nombre
+
+        elif dni:
+
+            identificacion = f"DNI {dni}"
+
+        else:
+
+            identificacion = "Alumno sin identificación"
+
+        if dni:
+
+            identificacion += f" - DNI {dni}"
+
+        # ----------------------------------------------------
+        # TP1
+        # ----------------------------------------------------
+
+        tp1_inas = ws_inas_reporte.cell(
+            fila,
+            2
+        ).value
+
+        tp1_notas = registro_notas[
+            "tp1"
+        ]
+
+        if not notas_iguales(
+            tp1_inas,
+            tp1_notas
+        ):
+
+            diferencias.append(
+                {
+                    "alumno": identificacion,
+                    "tp": "TP1",
+                    "nota_controlada": tp1_inas,
+                    "nota_actual": tp1_notas
+                }
+            )
+
+        # ----------------------------------------------------
+        # TP2
+        # ----------------------------------------------------
+
+        tp2_inas = ws_inas_reporte.cell(
+            fila,
+            3
+        ).value
+
+        tp2_notas = registro_notas[
+            "tp2"
+        ]
+
+        if not notas_iguales(
+            tp2_inas,
+            tp2_notas
+        ):
+
+            diferencias.append(
+                {
+                    "alumno": identificacion,
+                    "tp": "TP2",
+                    "nota_controlada": tp2_inas,
+                    "nota_actual": tp2_notas
+                }
+            )
+
+    return diferencias
+
+
+# ============================================================
+# COMPARAR NOTAS
+# ============================================================
+
+def notas_iguales(
+    nota1,
+    nota2
+):
+
+    """
+    Compara dos notas.
+
+    Considera equivalentes:
+
+        A = 0
+
+    También permite comparar correctamente:
+
+        vacío
+        None
+        0
+        0.0
+        "0"
+        "0,0"
+
+    Las A se consideran 0 únicamente para la comparación.
+    """
+
+    def normalizar_nota(valor):
+
+        # ----------------------------------------------------
+        # VACÍO
+        # ----------------------------------------------------
+
+        if valor is None:
+            return None
+
+        texto = str(
+            valor
+        ).strip().upper()
+
+        if texto == "":
+            return None
+
+        # ----------------------------------------------------
+        # A = 0
+        # ----------------------------------------------------
+
+        if texto == "A":
+            return 0.0
+
+        # ----------------------------------------------------
+        # NÚMERO
+        # ----------------------------------------------------
+
+        try:
+
+            return float(
+                texto.replace(
+                    ",",
+                    "."
+                )
+            )
+
+        except ValueError:
+
+            return texto
+
+    valor1 = normalizar_nota(
+        nota1
+    )
+
+    valor2 = normalizar_nota(
+        nota2
+    )
+
+    return valor1 == valor2
+
 
 # ============================================================
 # PROCESAMIENTO PRINCIPAL
@@ -2229,6 +2551,10 @@ def procesar(
     # --------------------------------------------------------
 
     ws_reporte = wb_inas[
+        "REPORTE"
+    ]
+
+    ws_reporte_inas = wb_inas[
         "REPORTE"
     ]
 
@@ -2786,6 +3112,137 @@ def procesar(
         )
     )
 
+    # ========================================================
+    # COMPARAR TP1 Y TP2
+    # ========================================================
+
+    diferencias_tp = comparar_tp1_tp2(
+        ws_reporte_inas,
+        ws_notas
+    )
+
+    # ========================================================
+    # CREAR OBS
+    # ========================================================
+
+    if "OBS" in wb_inas.sheetnames:
+
+        del wb_inas["OBS"]
+
+    ws_obs = wb_inas.create_sheet(
+        "OBS"
+    )
+
+    # --------------------------------------------------------
+    # TÍTULO
+    # --------------------------------------------------------
+
+    ws_obs["A1"] = "CONTROL DE NOTAS"
+
+    ws_obs["A1"].font = Font(
+        name="Arial",
+        size=12,
+        bold=True
+    )
+
+    # --------------------------------------------------------
+    # SIN CAMBIOS
+    # --------------------------------------------------------
+
+    if not diferencias_tp:
+
+        ws_obs["A3"] = (
+            "MATERIA SIN CAMBIOS"
+        )
+
+        ws_obs["A3"].font = Font(
+            name="Arial",
+            size=10,
+            bold=True
+        )
+
+    else:
+
+        # ----------------------------------------------------
+        # ENCABEZADOS
+        # ----------------------------------------------------
+
+        ws_obs["A3"] = "ALUMNO"
+        ws_obs["B3"] = "TP"
+        ws_obs["C3"] = "NOTA CONTROLADA"
+        ws_obs["D3"] = "NOTA ACTUAL"
+
+        for columna in range(
+            1,
+            5
+        ):
+
+            ws_obs.cell(
+                3,
+                columna
+            ).font = Font(
+                name="Arial",
+                size=10,
+                bold=True
+            )
+
+        # ----------------------------------------------------
+        # DIFERENCIAS
+        # ----------------------------------------------------
+
+        fila_obs = 4
+
+        for diferencia in diferencias_tp:
+
+            ws_obs.cell(
+                fila_obs,
+                1
+            ).value = diferencia[
+                "alumno"
+            ]
+
+            ws_obs.cell(
+                fila_obs,
+                2
+            ).value = diferencia[
+                "tp"
+            ]
+
+            ws_obs.cell(
+                fila_obs,
+                3
+            ).value = diferencia[
+                "nota_controlada"
+            ]
+
+            ws_obs.cell(
+                fila_obs,
+                4
+            ).value = diferencia[
+                "nota_actual"
+            ]
+
+            fila_obs += 1
+
+    # --------------------------------------------------------
+    # ANCHOS
+    # --------------------------------------------------------
+
+    ws_obs.column_dimensions[
+        "A"
+    ].width = 45
+
+    ws_obs.column_dimensions[
+        "B"
+    ].width = 10
+
+    ws_obs.column_dimensions[
+        "C"
+    ].width = 20
+
+    ws_obs.column_dimensions[
+        "D"
+    ].width = 20
     # ========================================================
     # FORMATO GENERAL
     # ========================================================
